@@ -3,7 +3,7 @@ import { useState, useReducer, useRef, useEffect, useCallback } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 // 🔧 KONFIGURASI — ganti URL ini setelah deploy AppScript sebagai Web App
 // ─────────────────────────────────────────────────────────────────────────────
-const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbyBRxW7uUQerFce08kZBLzM55nNgApacQOpIkc-P-vuWNcts8rtfSenlka4csMhpB240w/exec";
+const APPSCRIPT_URL = import.meta.env.VITE_APPSCRIPT_URL;
 
 // ─── API LAYER ────────────────────────────────────────────────────────────────
 const api = {
