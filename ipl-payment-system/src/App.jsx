@@ -3,7 +3,7 @@ import { useState, useReducer, useRef, useEffect, useCallback } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 // 🔧 KONFIGURASI — ganti URL ini setelah deploy AppScript sebagai Web App
 // ─────────────────────────────────────────────────────────────────────────────
-const APPSCRIPT_URL = import.meta.env.VITE_APPSCRIPT_URL;
+const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbyBRxW7uUQerFce08kZBLzM55nNgApacQOpIkc-P-vuWNcts8rtfSenlka4csMhpB240w/exec";
 
 // ─── API LAYER ────────────────────────────────────────────────────────────────
 const api = {
@@ -298,45 +298,81 @@ function ErrorScreen({ error, onRetry }) {
   );
 }
 
-// ─── QRIS PAGE ────────────────────────────────────────────────────────────────
-function QRISPage() {
+// ─── TRANSFER PAGE ───────────────────────────────────────────────────────────
+function QRISPage({ state }) {
+  const [copied, setCopied] = useState(false);
+  const norek = "1234567890";
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(norek);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const nominal = state?.config?.nominal_ipl || 250000;
+  const atasNama = state?.config?.atas_nama || "Yayasan Griya Asri";
+
   return (
-    <div className="max-w-sm mx-auto">
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center">
-        <div className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl p-1 mb-4 inline-block">
-          <div className="bg-white rounded-lg p-4">
-            <svg width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
-              <rect width="180" height="180" fill="white"/>
-              <rect x="10" y="10" width="50" height="50" fill="none" stroke="#0d9488" strokeWidth="4"/>
-              <rect x="18" y="18" width="34" height="34" fill="#0d9488"/>
-              <rect x="120" y="10" width="50" height="50" fill="none" stroke="#0d9488" strokeWidth="4"/>
-              <rect x="128" y="18" width="34" height="34" fill="#0d9488"/>
-              <rect x="10" y="120" width="50" height="50" fill="none" stroke="#0d9488" strokeWidth="4"/>
-              <rect x="18" y="128" width="34" height="34" fill="#0d9488"/>
-              {[70,78,86,94,102,110].map(x => [70,78,86,94,102,110].map(y =>
-                Math.sin(x * y) > 0 ? <rect key={`${x}${y}`} x={x} y={y} width="6" height="6" fill="#0d9488"/> : null
-              ))}
-            </svg>
+    <div className="max-w-sm mx-auto space-y-4">
+      <h2 className="text-xl font-bold text-slate-800">🏦 Info Pembayaran</h2>
+
+      {/* Card utama rekening */}
+      <div className="bg-gradient-to-br from-teal-600 to-cyan-700 rounded-2xl p-6 text-white shadow-lg">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center font-bold text-lg">B</div>
+          <div>
+            <p className="font-bold text-lg leading-tight">Bank BCA</p>
+            <p className="text-teal-100 text-xs">Bank Central Asia</p>
           </div>
         </div>
-        <p className="font-bold text-slate-800 text-lg">Perumahan Griya Asri</p>
-        <p className="text-slate-500 text-sm">Rekening IPL Warga</p>
-        <div className="mt-4 bg-teal-50 rounded-xl p-3">
-          <p className="text-xs text-teal-600 font-medium">Nominal Transfer</p>
-          <p className="text-2xl font-bold text-teal-700">Rp 250.000</p>
-          <p className="text-xs text-slate-400 mt-1">IPL Bulanan per unit</p>
+
+        <p className="text-teal-200 text-xs font-medium uppercase tracking-wide mb-1">Nomor Rekening</p>
+        <div className="flex items-center justify-between">
+          <p className="text-3xl font-bold tracking-widest">{norek}</p>
+          <button
+            onClick={handleCopy}
+            className="bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1">
+            {copied ? "✓ Disalin!" : "📋 Salin"}
+          </button>
         </div>
-        <div className="mt-4 text-left space-y-2 text-sm">
-          {[["Bank","BCA / Mandiri / BNI"],["No. Rekening","123-456-7890"],["Atas Nama","Yayasan Griya Asri"]].map(([k,v]) => (
-            <div key={k} className="flex justify-between">
-              <span className="text-slate-500">{k}</span>
-              <span className="font-semibold text-slate-700">{v}</span>
+
+        <div className="mt-4 pt-4 border-t border-white/20">
+          <p className="text-teal-200 text-xs mb-0.5">Atas Nama</p>
+          <p className="font-bold">{atasNama}</p>
+        </div>
+      </div>
+
+      {/* Nominal */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Nominal IPL Bulanan</p>
+        <p className="text-3xl font-bold text-teal-700">{fmt(nominal)}</p>
+        <p className="text-xs text-slate-400 mt-1">per unit / per bulan</p>
+      </div>
+
+      {/* Langkah transfer */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <p className="font-bold text-slate-700 mb-3">📋 Cara Transfer</p>
+        <div className="space-y-3">
+          {[
+            ["1", "Buka aplikasi BCA Mobile / m-BCA / ATM"],
+            ["2", `Transfer ke rekening BCA ${norek}`],
+            ["3", `Masukkan nominal Rp ${nominal.toLocaleString("id-ID")}`],
+            ["4", "Isi keterangan: Nama + Blok (contoh: Budi A1)"],
+            ["5", "Simpan bukti transfer"],
+            ["6", "Upload bukti di menu Konfirmasi"],
+          ].map(([n, text]) => (
+            <div key={n} className="flex gap-3 items-start">
+              <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{n}</div>
+              <p className="text-sm text-slate-600">{text}</p>
             </div>
           ))}
         </div>
-        <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2 mt-4">
-          ⚠️ Cantumkan nama & blok rumah pada keterangan transfer
-        </p>
+      </div>
+
+      {/* Warning */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-700">
+        <p className="font-semibold mb-1">⚠️ Perhatian</p>
+        <p>Pastikan nominal transfer tepat <strong>{fmt(nominal)}</strong> dan cantumkan <strong>nama + blok</strong> pada keterangan agar pembayaran mudah diverifikasi admin.</p>
       </div>
     </div>
   );
@@ -744,7 +780,7 @@ function AdminMatching({ state, dispatch }) {
 // ─── NAV CONFIG ───────────────────────────────────────────────────────────────
 const USER_MENU = [
   { id: "dashboard",  label: "Dashboard", icon: "🏠" },
-  { id: "qris",       label: "Bayar QRIS",icon: "📱" },
+  { id: "qris",       label: "Cara Bayar", icon: "🏦" },
   { id: "konfirmasi", label: "Konfirmasi",icon: "📤" },
   { id: "riwayat",    label: "Riwayat",   icon: "📜" },
 ];
@@ -797,7 +833,7 @@ export default function App() {
   const renderPage = () => {
     if (role === "user") switch (page) {
       case "dashboard":  return <UserDashboard  state={state} dispatch={dispatch} />;
-      case "qris":       return <QRISPage />;
+      case "qris":       return <QRISPage state={state} />;
       case "konfirmasi": return <UserKonfirmasi state={state} dispatch={dispatch} />;
       case "riwayat":    return <UserRiwayat    state={state} />;
       default:           return null;
