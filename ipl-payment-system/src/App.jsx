@@ -57,6 +57,7 @@ const initialState = {
   pembayaran: [],
   mutasi: [],
   currentWarga: null,
+  session: null,        // ← warga yang sedang login
   notification: null,
 };
 
@@ -65,6 +66,14 @@ function reducer(state, action) {
     case "SET_LOADING":   return { ...state, loading: action.payload };
     case "SET_SAVING":    return { ...state, saving: action.payload };
     case "SET_ERROR":     return { ...state, error: action.payload, loading: false, saving: false };
+
+    case "LOGIN":
+      sessionStorage.setItem("ipl_session", JSON.stringify(action.payload));
+      return { ...state, session: action.payload, currentWarga: action.payload };
+
+    case "LOGOUT":
+      sessionStorage.removeItem("ipl_session");
+      return { ...state, session: null, currentWarga: null };
 
     case "HYDRATE":
       return {
@@ -373,6 +382,106 @@ function QRISPage({ state }) {
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-700">
         <p className="font-semibold mb-1">⚠️ Perhatian</p>
         <p>Pastikan nominal transfer tepat <strong>{fmt(nominal)}</strong> dan cantumkan <strong>nama + blok</strong> pada keterangan agar pembayaran mudah diverifikasi admin.</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
+function LoginPage({ state, dispatch }) {
+  const [selectedId, setSelectedId] = useState("");
+  const [pin, setPin]               = useState("");
+  const [error, setError]           = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [showPin, setShowPin]       = useState(false);
+
+  const handleLogin = async () => {
+    if (!selectedId) { setError("Pilih nama warga dulu"); return; }
+    if (!pin)        { setError("Masukkan PIN"); return; }
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${APPSCRIPT_URL}?action=login&id_warga=${selectedId}&pin=${pin}`
+      ).then(r => r.json());
+
+      if (!res.ok) { setError(res.msg || "Login gagal"); }
+      else         { dispatch({ type: "LOGIN", payload: res.data }); }
+    } catch {
+      setError("Gagal terhubung ke server");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
+
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-md">🏘</div>
+          <h1 className="text-xl font-bold text-slate-800">Griya Asri</h1>
+          <p className="text-slate-500 text-sm">Sistem Iuran IPL</p>
+        </div>
+
+        <div className="space-y-4">
+
+          {/* Pilih warga */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-600 mb-1">Nama Warga</label>
+            <select
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+              value={selectedId}
+              onChange={e => { setSelectedId(e.target.value); setError(""); }}>
+              <option value="">— Pilih nama —</option>
+              {state.warga.map(w => (
+                <option key={w.id} value={w.id}>{w.nama} — Blok {w.blok}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* PIN */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-600 mb-1">PIN</label>
+            <div className="relative">
+              <input
+                type={showPin ? "text" : "password"}
+                maxLength={6}
+                placeholder="Masukkan PIN"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 pr-10 tracking-widest"
+                value={pin}
+                onChange={e => { setPin(e.target.value); setError(""); }}
+                onKeyDown={e => e.key === "Enter" && handleLogin()}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPin(s => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">
+                {showPin ? "🙈" : "👁"}
+              </button>
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <p className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              ⚠️ {error}
+            </p>
+          )}
+
+          {/* Tombol login */}
+          <button
+            onClick={handleLogin}
+            disabled={loading || state.loading}
+            className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
+            {loading ? "Memverifikasi…" : "Masuk"}
+          </button>
+
+          <p className="text-center text-xs text-slate-400 mt-2">
+            Lupa PIN? Hubungi pengurus RT
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -819,6 +928,12 @@ export default function App() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Restore session dari sessionStorage saat app load
+  useEffect(() => {
+    const saved = sessionStorage.getItem("ipl_session");
+    if (saved) dispatch({ type: "LOGIN", payload: JSON.parse(saved) });
+  }, []);
+
   const handleRoleSwitch = (r) => {
     setRole(r);
     setPage(r === "admin" ? "admin-dashboard" : "dashboard");
@@ -827,6 +942,9 @@ export default function App() {
   // Tampilkan loading / error sebelum render utama
   if (state.loading) return <LoadingScreen />;
   if (state.error)   return <ErrorScreen error={state.error} onRetry={loadData} />;
+
+  // Warga belum login → tampilkan LoginPage (admin bypass login)
+  if (!state.session && role === "user") return <LoginPage state={state} dispatch={dispatch} />;
 
   const menu = role === "admin" ? ADMIN_MENU : USER_MENU;
 
@@ -862,13 +980,18 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            {role === "user" && state.warga.length > 0 && (
-              <select
-                className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 text-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-400"
-                value={state.currentWarga?.id || ""}
-                onChange={e => dispatch({ type: "SET_WARGA", payload: state.warga.find(w => w.id === e.target.value) })}>
-                {state.warga.map(w => <option key={w.id} value={w.id}>{w.nama} (Blok {w.blok})</option>)}
-              </select>
+            {role === "user" && state.session && (
+              <div className="flex items-center gap-2">
+                <div className="text-right">
+                  <p className="text-xs font-semibold text-slate-700">{state.session.nama}</p>
+                  <p className="text-xs text-slate-400">Blok {state.session.blok}</p>
+                </div>
+                <button
+                  onClick={() => { dispatch({ type: "LOGOUT" }); setRole("user"); setPage("dashboard"); }}
+                  className="text-xs border border-slate-300 text-slate-500 hover:text-red-500 hover:border-red-300 px-2 py-1.5 rounded-lg transition-colors">
+                  Keluar
+                </button>
+              </div>
             )}
             <div className="flex bg-slate-100 rounded-xl p-1 text-xs font-semibold">
               {[["user","👤 Warga"],["admin","🔑 Admin"]].map(([r, label]) => (
