@@ -1,7 +1,7 @@
 import { useState, useReducer, useRef, useEffect, useCallback } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 🔧 KONFIGURASI — ganti URL ini setelah deploy AppScript sebagai Web App
+// 🔧 KONFIGURASI
 // ─────────────────────────────────────────────────────────────────────────────
 const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbyBRxW7uUQerFce08kZBLzM55nNgApacQOpIkc-P-vuWNcts8rtfSenlka4csMhpB240w/exec";
 
@@ -45,6 +45,17 @@ const api = {
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "uploadMutasi", rows }),
     }).then(r => r.json()),
+
+  uploadBukti: (payload) =>
+    fetch(APPSCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "uploadBukti", ...payload }),
+    }).then(r => r.json()),
+
+  autoMatch: () =>
+    fetch(`${APPSCRIPT_URL}?action=autoMatch`)
+      .then(r => r.json()),
 };
 
 // ─── REDUCER ──────────────────────────────────────────────────────────────────
@@ -56,8 +67,9 @@ const initialState = {
   tagihan: [],
   pembayaran: [],
   mutasi: [],
+  config: {},
   currentWarga: null,
-  session: null,        // ← warga yang sedang login
+  session: null,
   notification: null,
 };
 
@@ -84,6 +96,7 @@ function reducer(state, action) {
         tagihan:      action.payload.tagihan    || [],
         pembayaran:   action.payload.pembayaran || [],
         mutasi:       action.payload.mutasi     || [],
+        config:       action.payload.config     || {},
         currentWarga: action.payload.warga?.[0] || null,
       };
 
@@ -133,6 +146,12 @@ function reducer(state, action) {
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const fmt     = n => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n);
 const fmtDate = d => new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+
+// Normalize nomor rumah untuk automatch
+const normalizeRumah = (str) => {
+  if (!str) return "";
+  return str.toUpperCase().replace(/[\s\-_.]/g, "").trim();
+};
 
 // ─── STATUS BADGE ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -192,63 +211,27 @@ function PaymentTable({ rows, columns }) {
               <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                 {columns.map(c => (
                   <td key={c.key} className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                    {c.render ? c.render(row[c.key], row) : (row[c.key] ?? "—")}
+                    {c.render ? c.render(row) : row[c.key]}
                   </td>
                 ))}
               </tr>
-            ))
-          }
+            ))}
         </tbody>
       </table>
     </div>
   );
 }
 
-// ─── UPLOAD FORM ──────────────────────────────────────────────────────────────
-function UploadForm({ onUpload, saving }) {
-  const [drag, setDrag]         = useState(false);
-  const [fileName, setFileName] = useState("");
-  const fileRef = useRef();
-
-  const parseCSV = (text) =>
-    text.trim().split("\n").slice(1)
-      .map(l => {
-        const [tanggal, keterangan, nominal, pengirim] = l.split(",").map(s => s.trim().replace(/"/g, ""));
-        return { tanggal: tanggal || "", keterangan: keterangan || "", nominal: parseInt(nominal) || 0, pengirim: pengirim || "" };
-      })
-      .filter(r => r.nominal > 0 && r.tanggal);
-
-  const handleFile = (file) => {
-    if (!file) return;
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = e => onUpload(parseCSV(e.target.result));
-    reader.readAsText(file);
-  };
-
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+function Modal({ title, onClose, children }) {
   return (
-    <div
-      className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all
-        ${drag ? "border-teal-400 bg-teal-50" : "border-slate-300 bg-slate-50 hover:border-teal-300"}
-        ${saving ? "opacity-60 pointer-events-none" : ""}`}
-      onDragOver={e => { e.preventDefault(); setDrag(true); }}
-      onDragLeave={() => setDrag(false)}
-      onDrop={e => { e.preventDefault(); setDrag(false); handleFile(e.dataTransfer.files[0]); }}
-      onClick={() => fileRef.current.click()}
-    >
-      <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => handleFile(e.target.files[0])} />
-      <div className="text-4xl mb-3">{saving ? "⏳" : fileName ? "✅" : "📂"}</div>
-      {saving
-        ? <p className="text-teal-600 font-semibold">Mengupload ke Google Sheets…</p>
-        : fileName
-          ? <p className="text-teal-700 font-semibold">{fileName} berhasil dipilih</p>
-          : <>
-              <p className="text-slate-600 font-semibold">Drag & drop file CSV mutasi bank</p>
-              <p className="text-slate-400 text-sm mt-1">atau klik untuk browse</p>
-            </>
-      }
-      <div className="mt-4 text-xs text-slate-400 bg-white border border-slate-200 rounded-lg px-3 py-2 inline-block font-mono">
-        tanggal, keterangan, nominal, pengirim
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+        </div>
+        <div className="p-6">{children}</div>
       </div>
     </div>
   );
@@ -257,131 +240,41 @@ function UploadForm({ onUpload, saving }) {
 // ─── NOTIFICATION ─────────────────────────────────────────────────────────────
 function Notification({ notif, onClose }) {
   if (!notif) return null;
+  const colors = {
+    success: "bg-emerald-500",
+    error: "bg-red-500",
+    warning: "bg-amber-500",
+  };
   return (
-    <div className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-3 ${notif.type === "success" ? "bg-emerald-500" : "bg-red-500"}`}>
-      <span>{notif.type === "success" ? "✓" : "✕"}</span>
-      {notif.msg}
-      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100">✕</button>
+    <div className={`fixed top-4 right-4 ${colors[notif.type] || colors.success} text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 z-40 animate-pulse`}>
+      <span>{notif.msg}</span>
+      <button onClick={onClose} className="font-bold">×</button>
     </div>
   );
 }
 
-// ─── MODAL ────────────────────────────────────────────────────────────────────
-function Modal({ title, children, onClose }) {
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-slate-800 text-lg">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl">✕</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ─── LOADING SCREEN ───────────────────────────────────────────────────────────
+// ─── LOADING & ERROR SCREENS ──────────────────────────────────────────────────
 function LoadingScreen() {
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center gap-4">
-      <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center text-2xl animate-pulse">🏘</div>
-      <p className="text-slate-600 font-semibold">Memuat data dari Google Sheets…</p>
-      <p className="text-slate-400 text-sm">Mohon tunggu sebentar</p>
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-slate-600 font-semibold">Loading...</p>
+      </div>
     </div>
   );
 }
 
-// ─── ERROR SCREEN ─────────────────────────────────────────────────────────────
 function ErrorScreen({ error, onRetry }) {
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="text-5xl">⚠️</div>
-      <p className="text-slate-700 font-bold text-lg">Gagal terhubung ke server</p>
-      <p className="text-slate-500 text-sm max-w-sm">{error}</p>
-      <p className="text-xs text-slate-400 bg-white border rounded-lg px-3 py-2 font-mono break-all max-w-sm">{APPSCRIPT_URL}</p>
-      <button onClick={onRetry} className="mt-2 bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors">
-        🔄 Coba Lagi
-      </button>
-    </div>
-  );
-}
-
-// ─── TRANSFER PAGE ───────────────────────────────────────────────────────────
-function QRISPage({ state }) {
-  const [copied, setCopied] = useState(false);
-  const norek = "1234567890";
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(norek);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const nominal = state?.config?.nominal_ipl || 250000;
-  const atasNama = state?.config?.atas_nama || "Yayasan Griya Asri";
-
-  return (
-    <div className="max-w-sm mx-auto space-y-4">
-      <h2 className="text-xl font-bold text-slate-800">🏦 Info Pembayaran</h2>
-
-      {/* Card utama rekening */}
-      <div className="bg-gradient-to-br from-teal-600 to-cyan-700 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center font-bold text-lg">B</div>
-          <div>
-            <p className="font-bold text-lg leading-tight">Bank BCA</p>
-            <p className="text-teal-100 text-xs">Bank Central Asia</p>
-          </div>
-        </div>
-
-        <p className="text-teal-200 text-xs font-medium uppercase tracking-wide mb-1">Nomor Rekening</p>
-        <div className="flex items-center justify-between">
-          <p className="text-3xl font-bold tracking-widest">{norek}</p>
-          <button
-            onClick={handleCopy}
-            className="bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1">
-            {copied ? "✓ Disalin!" : "📋 Salin"}
-          </button>
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-white/20">
-          <p className="text-teal-200 text-xs mb-0.5">Atas Nama</p>
-          <p className="font-bold">{atasNama}</p>
-        </div>
-      </div>
-
-      {/* Nominal */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Nominal IPL Bulanan</p>
-        <p className="text-3xl font-bold text-teal-700">{fmt(nominal)}</p>
-        <p className="text-xs text-slate-400 mt-1">per unit / per bulan</p>
-      </div>
-
-      {/* Langkah transfer */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-        <p className="font-bold text-slate-700 mb-3">📋 Cara Transfer</p>
-        <div className="space-y-3">
-          {[
-            ["1", "Buka aplikasi BCA Mobile / m-BCA / ATM"],
-            ["2", `Transfer ke rekening BCA ${norek}`],
-            ["3", `Masukkan nominal Rp ${nominal.toLocaleString("id-ID")}`],
-            ["4", "Isi keterangan: Nama + Blok (contoh: Budi A1)"],
-            ["5", "Simpan bukti transfer"],
-            ["6", "Upload bukti di menu Konfirmasi"],
-          ].map(([n, text]) => (
-            <div key={n} className="flex gap-3 items-start">
-              <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{n}</div>
-              <p className="text-sm text-slate-600">{text}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Warning */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-700">
-        <p className="font-semibold mb-1">⚠️ Perhatian</p>
-        <p>Pastikan nominal transfer tepat <strong>{fmt(nominal)}</strong> dan cantumkan <strong>nama + blok</strong> pada keterangan agar pembayaran mudah diverifikasi admin.</p>
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md text-center">
+        <div className="text-6xl mb-4">⚠️</div>
+        <h1 className="text-2xl font-bold text-slate-800 mb-2">Terjadi Kesalahan</h1>
+        <p className="text-slate-600 text-sm mb-6">{error}</p>
+        <button onClick={onRetry} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-xl">
+          Coba Lagi
+        </button>
       </div>
     </div>
   );
@@ -417,17 +310,13 @@ function LoginPage({ state, dispatch }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
-
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-md">🏘</div>
-          <h1 className="text-xl font-bold text-slate-800">Griya Asri</h1>
+          <h1 className="text-xl font-bold text-slate-800">{state.config.nama_perumahan || "MANDALIKA"}</h1>
           <p className="text-slate-500 text-sm">Sistem Iuran IPL</p>
         </div>
 
         <div className="space-y-4">
-
-          {/* Pilih warga */}
           <div>
             <label className="block text-sm font-semibold text-slate-600 mb-1">Nama Warga</label>
             <select
@@ -436,12 +325,11 @@ function LoginPage({ state, dispatch }) {
               onChange={e => { setSelectedId(e.target.value); setError(""); }}>
               <option value="">— Pilih nama —</option>
               {state.warga.map(w => (
-                <option key={w.id} value={w.id}>{w.nama} — Blok {w.blok}</option>
+                <option key={w.id} value={w.id}>{w.nama} — Blok {w.blok}{w.nomor}</option>
               ))}
             </select>
           </div>
 
-          {/* PIN */}
           <div>
             <label className="block text-sm font-semibold text-slate-600 mb-1">PIN</label>
             <div className="relative">
@@ -463,14 +351,12 @@ function LoginPage({ state, dispatch }) {
             </div>
           </div>
 
-          {/* Error */}
           {error && (
             <p className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               ⚠️ {error}
             </p>
           )}
 
-          {/* Tombol login */}
           <button
             onClick={handleLogin}
             disabled={loading || state.loading}
@@ -501,108 +387,237 @@ function UserDashboard({ state }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-slate-800">Selamat datang, {currentWarga.nama} 👋</h2>
-        <p className="text-slate-500 text-sm">Blok {currentWarga.blok} — {currentWarga.telepon}</p>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <DashboardCard icon="🏠" label="Tagihan Belum Lunas" value={`${belumLunas.length} bulan`} sub={fmt(totalTagihan)} color="rose" />
-        <DashboardCard icon="✅" label="Total Sudah Dibayar" value={fmt(totalBayar)} sub={`${myPembayaran.filter(p => p.status==="APPROVED").length} pembayaran`} color="teal" />
-        <DashboardCard icon="⏳" label="Menunggu Konfirmasi" value={`${myPembayaran.filter(p => p.status==="PENDING").length} transaksi`} sub="Status pending" color="amber" />
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">
+        Selamat datang, {currentWarga.nama} 👋
+      </h1>
+      <p className="text-slate-600 text-sm">
+        Blok {currentWarga.blok}{currentWarga.nomor} — {currentWarga.alamat || ""}
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <DashboardCard icon="📋" label="Tagihan Belum Lunas" value={belumLunas.length} sub={fmt(totalTagihan)} color="rose" />
+        <DashboardCard icon="✅" label="Total Sudah Dibayar" value={fmt(totalBayar)} color="emerald" />
+        <DashboardCard icon="⏳" label="Menunggu Persetujuan" value={myPembayaran.filter(p => p.status === "PENDING").length} color="amber" />
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-        <h3 className="font-bold text-slate-700 mb-4">📋 Tagihan Aktif</h3>
-        {belumLunas.length === 0
-          ? <div className="text-center py-8 text-emerald-600"><div className="text-4xl mb-2">🎉</div><p className="font-semibold">Semua tagihan sudah lunas!</p></div>
-          : <div className="space-y-3">
-              {belumLunas.map(t => {
-                const paid = myPembayaran.find(p => p.tagihanId === t.id);
-                return (
-                  <div key={t.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <div>
-                      <p className="font-semibold text-slate-700">{t.bulan}</p>
-                      <p className="text-xs text-slate-400">Jatuh tempo: {fmtDate(t.jatuhTempo)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-rose-600">{fmt(t.nominal)}</p>
-                      {paid ? <StatusBadge status={paid.status} /> : <span className="text-xs text-slate-400">Belum dibayar</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-        }
+      {belumLunas.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <h3 className="font-bold text-slate-700 mb-4">Tagihan Aktif</h3>
+          <div className="space-y-3">
+            {belumLunas.map(t => (
+              <div key={t.id} className="flex items-center justify-between p-4 bg-rose-50 rounded-xl border border-rose-200">
+                <div>
+                  <p className="font-semibold text-slate-700">{t.deskripsi || "Iuran IPL"}</p>
+                  <p className="text-xs text-slate-500">Jatuh tempo: {fmtDate(t.jatuhTempo)}</p>
+                </div>
+                <p className="font-bold text-rose-600">{fmt(t.nominal)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── USER: QRIS PAGE ──────────────────────────────────────────────────────────
+function QRISPage({ state }) {
+  const config = state.config;
+  const nominalIpl = config.nominal_ipl || 40000;
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Cara Bayar IPL</h1>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="text-3xl">🏦</div>
+          <div>
+            <h2 className="font-bold text-slate-800">Informasi Rekening</h2>
+            <p className="text-sm text-slate-500">{config.bank_name || "BCA"}</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+          <p className="text-xs text-slate-500 uppercase">Nomor Rekening</p>
+          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "1234567890"}</p>
+          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "Yayasan Griya Asri"}</p>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500 uppercase">Nominal Transfer</p>
+          <p className="text-3xl font-bold text-emerald-600">{fmt(nominalIpl)}</p>
+        </div>
+
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg space-y-3">
+          <p className="text-sm font-semibold text-yellow-800">📌 PERATURAN PEMBAYARAN IPL BULANAN</p>
+          <ul className="text-xs text-yellow-700 space-y-2">
+            <li>✓ Pembayaran dilakukan setiap bulan (batas: 25 Mei setiap bulan)</li>
+            <li>✓ Wajib menggunakan media transfer bank</li>
+            <li>✓ <strong>Cantumkan nomor rumah di catatan bank (A1**, tanpa spasi/karakter lain)</strong></li>
+            <li>✓ Gagal terbaca? Hubungi operator:</li>
+            <li className="ml-4">• Hari: 085795172272</li>
+            <li className="ml-4">• Egi: 08133344003</li>
+          </ul>
+
+          <div className="bg-white rounded-lg p-3 mt-4">
+            <p className="text-xs font-semibold text-yellow-800 mb-2">💰 RINCIAN NOMINAL {fmt(nominalIpl)}:</p>
+            <ul className="text-xs text-yellow-700 space-y-1">
+              <li>• Rp 15.000 — Biaya pengambilan sampah</li>
+              <li>• Rp 15.000 — Biaya lokasi pembuangan sampah</li>
+              <li>• Rp 10.000 — Kas warga</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── USER: KONFIRMASI ─────────────────────────────────────────────────────────
+// ─── USER: KONFIRMASI PEMBAYARAN ──────────────────────────────────────────────
 function UserKonfirmasi({ state, dispatch }) {
-  const { currentWarga, tagihan, saving } = state;
-  const myTagihan = tagihan.filter(t => t.wargaId === currentWarga?.id);
-  const [form, setForm] = useState({ tagihanId: "", nominal: 250000, bukti: "" });
+  const { currentWarga, pembayaran, tagihan } = state;
+  if (!currentWarga) return null;
+
+  const [modal, setModal] = useState(null);
+  const [selectedTagihan, setSelectedTagihan] = useState("");
+  const [buktiFile, setBuktiFile] = useState(null);
+  const [catatan, setCatatan] = useState("");
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef();
+
+  const tagihanBelumLunas = tagihan.filter(t => t.wargaId === currentWarga.id && !pembayaran.find(p => p.tagihanId === t.id && p.status === "APPROVED"));
 
   const handleSubmit = async () => {
-    if (!form.bukti) { alert("Mohon upload bukti pembayaran"); return; }
-    dispatch({ type: "SET_SAVING", payload: true });
+    if (!selectedTagihan) { alert("Pilih tagihan dulu"); return; }
+    setSaving(true);
     try {
-      const res = await api.submitPembayaran({
-        wargaId:   currentWarga.id,
-        tagihanId: form.tagihanId || null,
-        nominal:   form.nominal,
-        bukti:     form.bukti,
-        tanggal:   new Date().toISOString().split("T")[0],
-      });
-      // res.data = record pembayaran baru dari AppScript (sudah ada ID dari Sheet)
-      dispatch({ type: "ADD_PEMBAYARAN", payload: res.data });
-      setForm({ tagihanId: "", nominal: 250000, bukti: "" });
-    } catch {
-      dispatch({ type: "SET_ERROR", payload: "Gagal mengirim konfirmasi. Coba lagi." });
+      let buktiUrl = null;
+      if (buktiFile) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const buktiRes = await api.uploadBukti({
+            fileName: buktiFile.name,
+            fileData: e.target.result.split(",")[1],
+            wargaId: currentWarga.id,
+            tagihanId: selectedTagihan,
+          });
+          buktiUrl = buktiRes.buktiUrl;
+          
+          const tgh = tagihan.find(t => t.id === selectedTagihan);
+          const res = await api.submitPembayaran({
+            wargaId: currentWarga.id,
+            tagihanId: selectedTagihan,
+            nominal: tgh.nominal,
+            catatan,
+            bukti: buktiUrl,
+          });
+
+          if (res.ok) {
+            dispatch({ type: "ADD_PEMBAYARAN", payload: res.data });
+            setModal(null);
+            setSelectedTagihan("");
+            setBuktiFile(null);
+            setCatatan("");
+          }
+          setSaving(false);
+        };
+        reader.readAsDataURL(buktiFile);
+      } else {
+        const tgh = tagihan.find(t => t.id === selectedTagihan);
+        const res = await api.submitPembayaran({
+          wargaId: currentWarga.id,
+          tagihanId: selectedTagihan,
+          nominal: tgh.nominal,
+          catatan,
+          bukti: null,
+        });
+
+        if (res.ok) {
+          dispatch({ type: "ADD_PEMBAYARAN", payload: res.data });
+          setModal(null);
+          setSelectedTagihan("");
+          setBuktiFile(null);
+          setCatatan("");
+        }
+        setSaving(false);
+      }
+    } catch (e) {
+      alert("Gagal submit pembayaran: " + e.message);
+      setSaving(false);
     }
   };
 
+  const myPembayaran = pembayaran.filter(p => p.wargaId === currentWarga.id);
+  const cols = [
+    { key: "tanggal", label: "Tgl" },
+    { key: "nominal", label: "Nominal", render: (r) => fmt(r.nominal) },
+    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    { 
+      key: "bukti", 
+      label: "Bukti", 
+      render: (r) => r.bukti ? (
+        <a href={r.bukti} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-800 underline">
+          📎 Lihat
+        </a>
+      ) : "—"
+    },
+  ];
+
   return (
-    <div className="max-w-lg mx-auto space-y-5">
-      <h2 className="text-xl font-bold text-slate-800">📤 Konfirmasi Pembayaran</h2>
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-
-        <div>
-          <label className="block text-sm font-semibold text-slate-600 mb-1">Tagihan</label>
-          <select className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-            value={form.tagihanId} onChange={e => setForm(f => ({ ...f, tagihanId: e.target.value }))}>
-            <option value="">— Pilih tagihan (opsional) —</option>
-            {myTagihan.map(t => <option key={t.id} value={t.id}>{t.bulan} — {fmt(t.nominal)}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-slate-600 mb-1">Nominal Transfer (Rp)</label>
-          <input type="number" className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-            value={form.nominal} onChange={e => setForm(f => ({ ...f, nominal: parseInt(e.target.value) || 0 }))} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-slate-600 mb-1">Upload Bukti Transfer</label>
-          <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl py-6 cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-colors">
-            <span className="text-3xl mb-2">{form.bukti ? "🖼️" : "📎"}</span>
-            <span className="text-sm text-slate-500">{form.bukti || "Klik untuk pilih foto / screenshot"}</span>
-            <input type="file" className="hidden" accept="image/*"
-              onChange={e => setForm(f => ({ ...f, bukti: e.target.files[0]?.name || "" }))} />
-          </label>
-          <p className="text-xs text-slate-400 mt-1">* Nama file dikirim ke server. Upload ke Drive bisa ditambah via AppScript.</p>
-        </div>
-
-        <div className="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">
-          ⚠️ Pastikan nama pengirim sesuai: <strong>{currentWarga?.nama}</strong>
-        </div>
-
-        <button onClick={handleSubmit} disabled={saving}
-          className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
-          {saving ? "Mengirim ke server…" : "Kirim Konfirmasi"}
-        </button>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Konfirmasi Pembayaran</h1>
+        {tagihanBelumLunas.length > 0 && (
+          <button onClick={() => setModal("submit")} className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-xl">
+            + Konfirmasi Pembayaran
+          </button>
+        )}
       </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <h3 className="font-bold text-slate-700 mb-4">Riwayat Konfirmasi</h3>
+        <PaymentTable rows={myPembayaran} columns={cols} />
+      </div>
+
+      {modal === "submit" && (
+        <Modal title="Konfirmasi Pembayaran" onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-600 mb-1">Pilih Tagihan</label>
+              <select value={selectedTagihan} onChange={e => setSelectedTagihan(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                <option value="">— Pilih tagihan —</option>
+                {tagihanBelumLunas.map(t => (
+                  <option key={t.id} value={t.id}>{t.deskripsi} — {fmt(t.nominal)}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-600 mb-1">Catatan (Nomor Rumah)</label>
+              <input type="text" placeholder="Contoh: B234" value={catatan} onChange={e => setCatatan(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+              <p className="text-xs text-slate-500 mt-1">Masukkan nomor rumah Anda (sesuai di catatan transfer bank)</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-600 mb-1">Upload Bukti Transfer (Opsional)</label>
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                className="w-full border-2 border-dashed border-teal-300 rounded-xl p-4 text-center hover:bg-teal-50 transition-colors">
+                <p className="text-sm text-teal-600 font-semibold">{buktiFile ? buktiFile.name : "📸 Click untuk upload bukti"}</p>
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={e => setBuktiFile(e.target.files?.[0])} className="hidden" />
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setModal(null)} className="flex-1 border border-slate-300 text-slate-600 py-2 rounded-xl text-sm font-semibold hover:bg-slate-50">Batal</button>
+              <button onClick={handleSubmit} disabled={saving || !selectedTagihan} className="flex-1 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white py-2 rounded-xl text-sm font-semibold">
+                {saving ? "Mengirim..." : "Konfirmasi"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -610,121 +625,120 @@ function UserKonfirmasi({ state, dispatch }) {
 // ─── USER: RIWAYAT ────────────────────────────────────────────────────────────
 function UserRiwayat({ state }) {
   const { currentWarga, pembayaran } = state;
-  const myP = pembayaran
-    .filter(p => p.wargaId === currentWarga?.id)
-    .sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+  if (!currentWarga) return null;
 
+  const myPembayaran = pembayaran.filter(p => p.wargaId === currentWarga.id).sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
   const cols = [
-    { key: "tanggal", label: "Tanggal",  render: v => fmtDate(v) },
-    { key: "nominal", label: "Nominal",  render: v => fmt(v) },
-    { key: "bukti",   label: "Bukti" },
-    { key: "status",  label: "Status",   render: v => <StatusBadge status={v} /> },
-    { key: "catatan", label: "Catatan",  render: v => v ? <span className="text-red-500 text-xs">{v}</span> : "—" },
+    { key: "tanggal", label: "Tanggal", render: (r) => fmtDate(r.tanggal) },
+    { key: "nominal", label: "Nominal", render: (r) => fmt(r.nominal) },
+    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    { key: "catatan", label: "Catatan" },
   ];
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold text-slate-800">📜 Riwayat Pembayaran</h2>
-      <PaymentTable rows={myP} columns={cols} />
+    <div className="space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Riwayat Pembayaran</h1>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <PaymentTable rows={myPembayaran} columns={cols} />
+      </div>
     </div>
   );
 }
 
 // ─── ADMIN: DASHBOARD ─────────────────────────────────────────────────────────
 function AdminDashboard({ state }) {
-  const { pembayaran, warga } = state;
-  const totalKas       = pembayaran.filter(p => p.status === "APPROVED").reduce((s, p) => s + p.nominal, 0);
-  const totalPemasukan = pembayaran.filter(p => ["APPROVED","MATCHED"].includes(p.status)).reduce((s, p) => s + p.nominal, 0);
-  const wargaBelumBayar = warga.filter(w => !pembayaran.some(p => p.wargaId === w.id && p.status === "APPROVED")).length;
+  const { pembayaran, mutasi, tagihan } = state;
+  const totalTagihan = tagihan.reduce((s, t) => s + t.nominal, 0);
+  const totalBayarApproved = pembayaran.filter(p => p.status === "APPROVED").reduce((s, p) => s + p.nominal, 0);
+  const totalPending = pembayaran.filter(p => p.status === "PENDING").length;
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-slate-800">📊 Dashboard Admin</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <DashboardCard icon="🏦" label="Total Kas"         value={fmt(totalKas)}        sub="Sudah diapprove"             color="teal"  />
-        <DashboardCard icon="💰" label="Total Pemasukan"   value={fmt(totalPemasukan)}  sub="Termasuk matched"            color="blue"  />
-        <DashboardCard icon="🏠" label="Warga Belum Bayar" value={`${wargaBelumBayar} warga`} sub={`dari ${warga.length} total`} color="rose"  />
-        <DashboardCard icon="⏳" label="Menunggu Review"   value={`${pembayaran.filter(p=>p.status==="PENDING").length} pembayaran`} sub="Status PENDING" color="amber" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-          <h3 className="font-bold text-slate-700 mb-3">📈 Distribusi Status</h3>
-          {["APPROVED","MATCHED","PENDING","REJECTED"].map(s => {
-            const count = pembayaran.filter(p => p.status === s).length;
-            const pct   = pembayaran.length > 0 ? Math.round(count / pembayaran.length * 100) : 0;
-            return (
-              <div key={s} className="flex items-center gap-3 mb-3">
-                <StatusBadge status={s} />
-                <div className="flex-1 bg-slate-100 rounded-full h-2">
-                  <div className="h-2 rounded-full bg-teal-500 transition-all" style={{ width: `${pct}%` }} />
-                </div>
-                <span className="text-sm font-semibold text-slate-600 w-6 text-right">{count}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-          <h3 className="font-bold text-slate-700 mb-3">👥 Status per Warga</h3>
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-            {warga.map(w => {
-              const latest = pembayaran
-                .filter(p => p.wargaId === w.id)
-                .sort((a,b) => b.tanggal.localeCompare(a.tanggal))[0];
-              return (
-                <div key={w.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700">{w.nama}</p>
-                    <p className="text-xs text-slate-400">Blok {w.blok}</p>
-                  </div>
-                  {latest ? <StatusBadge status={latest.status} /> : <span className="text-xs text-slate-400 italic">Belum bayar</span>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Dashboard Admin</h1>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <DashboardCard icon="📋" label="Total Tagihan" value={fmt(totalTagihan)} color="rose" />
+        <DashboardCard icon="✅" label="Pembayaran Disetujui" value={fmt(totalBayarApproved)} color="emerald" />
+        <DashboardCard icon="⏳" label="Menunggu Review" value={totalPending} color="amber" />
+        <DashboardCard icon="🏦" label="Mutasi Bank" value={mutasi.length} color="blue" />
+        <DashboardCard icon="🔗" label="Matched" value={mutasi.filter(m => m.matched).length} color="teal" />
       </div>
     </div>
   );
 }
 
 // ─── ADMIN: UPLOAD MUTASI ─────────────────────────────────────────────────────
-function AdminUploadMutasi({ state, dispatch }) {
-  const { mutasi, saving } = state;
+function UploadForm({ onUpload, saving }) {
+  const [drag, setDrag] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const fileRef = useRef();
 
+  const parseCSV = (text) =>
+    text.trim().split("\n").slice(1)
+      .map(l => {
+        const [tanggal, keterangan, nominal, pengirim] = l.split(",").map(s => s.trim().replace(/"/g, ""));
+        return { tanggal, keterangan, nominal: parseInt(nominal) || 0, pengirim };
+      })
+      .filter(r => r.nominal > 0 && r.tanggal);
+
+  const handleFile = (file) => {
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = e => onUpload(parseCSV(e.target.result));
+    reader.readAsText(file);
+  };
+
+  return (
+    <div
+      className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all ${drag ? "border-teal-400 bg-teal-50" : "border-slate-300 bg-slate-50 hover:border-teal-300"} ${saving ? "opacity-60 pointer-events-none" : ""}`}
+      onDragOver={e => { e.preventDefault(); setDrag(true); }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={e => { e.preventDefault(); setDrag(false); handleFile(e.dataTransfer.files[0]); }}
+      onClick={() => fileRef.current.click()}
+    >
+      <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => handleFile(e.target.files[0])} />
+      <div className="text-4xl mb-3">{saving ? "⏳" : fileName ? "✅" : "📂"}</div>
+      {saving
+        ? <p className="text-teal-600 font-semibold">Mengupload…</p>
+        : fileName
+          ? <p className="text-teal-700 font-semibold">{fileName} berhasil dipilih</p>
+          : <>
+              <p className="text-slate-600 font-semibold">Drag & drop file CSV mutasi bank</p>
+              <p className="text-slate-400 text-sm mt-1">atau klik untuk browse</p>
+            </>
+      }
+    </div>
+  );
+}
+
+function AdminUploadMutasi({ state, dispatch }) {
+  const { saving } = state;
   const handleUpload = async (rows) => {
     dispatch({ type: "SET_SAVING", payload: true });
     try {
-      await api.uploadMutasi(rows);
-      dispatch({
-        type: "ADD_MUTASI",
-        payload: rows.map((r, i) => ({ ...r, id: `M_NEW_${Date.now()}_${i}`, matched: false })),
-      });
-    } catch {
-      dispatch({ type: "SET_ERROR", payload: "Gagal upload mutasi ke server." });
+      const res = await api.uploadMutasi(rows);
+      if (res.ok) {
+        dispatch({ type: "ADD_MUTASI", payload: res.data || rows });
+        // Auto-trigger matching
+        const matchRes = await api.autoMatch();
+        if (matchRes.ok && matchRes.matched > 0) {
+          dispatch({ type: "SET_NOTIFICATION", payload: { type: "success", msg: `${matchRes.matched} pembayaran otomatis ter-match!` } });
+        }
+      }
+    } catch (e) {
+      dispatch({ type: "SET_ERROR", payload: "Gagal upload mutasi: " + e.message });
     }
+    dispatch({ type: "SET_SAVING", payload: false });
   };
 
-  const cols = [
-    { key: "id",         label: "ID" },
-    { key: "tanggal",    label: "Tanggal",    render: v => fmtDate(v) },
-    { key: "pengirim",   label: "Pengirim" },
-    { key: "keterangan", label: "Keterangan" },
-    { key: "nominal",    label: "Nominal",    render: v => fmt(v) },
-    { key: "matched",    label: "Status",     render: v => v
-      ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-semibold">Matched</span>
-      : <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full">Belum</span>
-    },
-  ];
-
   return (
-    <div className="space-y-5">
-      <h2 className="text-xl font-bold text-slate-800">📁 Upload Mutasi Bank</h2>
+    <div className="space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Upload Mutasi Bank</h1>
       <UploadForm onUpload={handleUpload} saving={saving} />
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-        <h3 className="font-bold text-slate-700 mb-4">Tabel Mutasi Bank ({mutasi.length} baris)</h3>
-        <PaymentTable rows={mutasi} columns={cols} />
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+        <p className="font-semibold mb-2">📋 Format CSV:</p>
+        <p className="font-mono text-xs">tanggal,keterangan,nominal,pengirim</p>
+        <p className="text-xs mt-1">Contoh: 2025-04-01,TRF IPL APR BUDI A2,40000,BUDI SANTOSO</p>
       </div>
     </div>
   );
@@ -732,147 +746,67 @@ function AdminUploadMutasi({ state, dispatch }) {
 
 // ─── ADMIN: MATCHING ──────────────────────────────────────────────────────────
 function AdminMatching({ state, dispatch }) {
-  const { pembayaran, mutasi, warga, saving } = state;
-  const [rejectModal, setRejectModal] = useState(null);
+  const { pembayaran, mutasi, warga } = state;
   const [assignModal, setAssignModal] = useState(null);
-  const [rejectNote,  setRejectNote]  = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const getWarga  = id => warga.find(w => w.id === id);
+  const getWarga = (id) => warga.find(w => w.id === id);
+
   const unmatched = mutasi.filter(m => !m.matched);
-
-  const handleApprove = async (row) => {
-    dispatch({ type: "SET_SAVING", payload: true });
-    try {
-      await api.approvePembayaran({ pembayaranId: row.id, mutasiId: row.mutasiId });
-      dispatch({ type: "UPDATE_PEMBAYARAN", payload: {
-        id: row.id, mutasiId: row.mutasiId,
-        changes: { status: "APPROVED" },
-        notifType: "success", msg: "Pembayaran disetujui!",
-      }});
-    } catch {
-      dispatch({ type: "SET_SAVING", payload: false });
-    }
-  };
-
-  const handleReject = async () => {
-    dispatch({ type: "SET_SAVING", payload: true });
-    try {
-      await api.rejectPembayaran({ pembayaranId: rejectModal, catatan: rejectNote });
-      dispatch({ type: "UPDATE_PEMBAYARAN", payload: {
-        id: rejectModal, mutasiId: null,
-        changes: { status: "REJECTED", catatan: rejectNote },
-        notifType: "error", msg: "Pembayaran ditolak.",
-      }});
-      setRejectModal(null);
-    } catch {
-      dispatch({ type: "SET_SAVING", payload: false });
-    }
-  };
+  const pendingPembayaran = pembayaran.filter(p => p.status === "PENDING");
 
   const handleAssign = async (mutasiId) => {
-    dispatch({ type: "SET_SAVING", payload: true });
+    if (!assignModal) return;
+    setSaving(true);
     try {
-      await api.assignMutasi({ pembayaranId: assignModal.id, mutasiId });
-      dispatch({ type: "UPDATE_PEMBAYARAN", payload: {
-        id: assignModal.id, mutasiId,
-        changes: { status: "MATCHED", mutasiId },
-        notifType: "success", msg: "Mutasi berhasil di-assign!",
-      }});
-      setAssignModal(null);
-    } catch {
-      dispatch({ type: "SET_SAVING", payload: false });
+      const res = await api.assignMutasi({
+        pembayaranId: assignModal.id,
+        mutasiId,
+      });
+      if (res.ok) {
+        dispatch({ type: "UPDATE_PEMBAYARAN", payload: { id: assignModal.id, changes: { id_mutasi: mutasiId, status: "MATCHED" }, mutasiId, msg: "Mutasi berhasil di-assign!", notifType: "success" } });
+        setAssignModal(null);
+      }
+    } catch (e) {
+      alert("Gagal assign: " + e.message);
     }
+    setSaving(false);
   };
 
   const cols = [
-    { key: "wargaId",  label: "Warga",         render: v => { const w = getWarga(v); return w ? <div><p className="font-semibold">{w.nama}</p><p className="text-xs text-slate-400">Blok {w.blok}</p></div> : v; }},
-    { key: "tanggal",  label: "Tgl Konfirmasi", render: v => fmtDate(v) },
-    { key: "nominal",  label: "Nominal",        render: v => fmt(v) },
-    { key: "bukti",    label: "Bukti",          render: v => <span className="text-xs text-blue-600 underline cursor-pointer">{v}</span> },
-    { key: "mutasiId", label: "Mutasi",         render: v => v ? <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{v}</span> : "—" },
-    { key: "status",   label: "Status",         render: v => <StatusBadge status={v} /> },
-    {
-      key: "id", label: "Aksi",
-      render: (v, row) => (
-        <div className="flex gap-2">
-          {row.status === "MATCHED" && (
-            <button onClick={() => handleApprove(row)} disabled={saving}
-              className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs rounded-lg font-semibold">
-              ✓ Approve
-            </button>
-          )}
-          {row.status === "PENDING" && (
-            <button onClick={() => setAssignModal(row)} disabled={saving}
-              className="px-3 py-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white text-xs rounded-lg font-semibold">
-              🔗 Assign
-            </button>
-          )}
-          {["PENDING","MATCHED"].includes(row.status) && (
-            <button onClick={() => { setRejectModal(v); setRejectNote(""); }} disabled={saving}
-              className="px-3 py-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs rounded-lg font-semibold">
-              ✕ Reject
-            </button>
-          )}
-        </div>
-      ),
+    { key: "catatan", label: "Warga/Keterangan" },
+    { key: "tanggal", label: "Tanggal", render: (r) => fmtDate(r.tanggal) },
+    { key: "nominal", label: "Nominal", render: (r) => fmt(r.nominal) },
+    { 
+      key: "action", 
+      label: "Action", 
+      render: (r) => (
+        <button onClick={() => setAssignModal(r)} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg">
+          Assign
+        </button>
+      )
     },
   ];
 
   return (
-    <div className="space-y-5">
-      <h2 className="text-xl font-bold text-slate-800">🔗 Matching Pembayaran</h2>
-
-      {unmatched.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-          <p className="font-semibold text-amber-700 text-sm mb-2">⚠️ {unmatched.length} Mutasi Belum di-Match</p>
-          <div className="space-y-2">
-            {unmatched.map(m => (
-              <div key={m.id} className="bg-white rounded-xl p-3 border border-amber-200 flex items-center justify-between text-sm">
-                <div>
-                  <p className="font-semibold text-slate-700">{m.pengirim}</p>
-                  <p className="text-xs text-slate-400">{fmtDate(m.tanggal)} · {m.keterangan}</p>
-                </div>
-                <p className="font-bold text-teal-600">{fmt(m.nominal)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Matching Pembayaran</h1>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-        <h3 className="font-bold text-slate-700 mb-4">Semua Konfirmasi Pembayaran</h3>
-        <PaymentTable rows={pembayaran} columns={cols} />
+        <h3 className="font-bold text-slate-700 mb-4">Pembayaran Pending (Belum Match)</h3>
+        <PaymentTable rows={pendingPembayaran} columns={cols} />
       </div>
-
-      {rejectModal && (
-        <Modal title="Tolak Pembayaran" onClose={() => setRejectModal(null)}>
-          <div className="space-y-4">
-            <p className="text-sm text-slate-600">Berikan alasan penolakan:</p>
-            <textarea className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-              rows={3} value={rejectNote} onChange={e => setRejectNote(e.target.value)}
-              placeholder="Contoh: Nominal tidak sesuai, nama pengirim berbeda…" />
-            <div className="flex gap-3">
-              <button onClick={() => setRejectModal(null)} className="flex-1 border border-slate-300 text-slate-600 py-2 rounded-xl text-sm font-semibold hover:bg-slate-50">Batal</button>
-              <button onClick={handleReject} disabled={saving}
-                className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white py-2 rounded-xl text-sm font-semibold">
-                {saving ? "Memproses…" : "Tolak"}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
 
       {assignModal && (
         <Modal title="Assign Mutasi ke Pembayaran" onClose={() => setAssignModal(null)}>
           <p className="text-sm text-slate-600 mb-3">
-            Pilih mutasi untuk <strong>{getWarga(assignModal.wargaId)?.nama}</strong> ({fmt(assignModal.nominal)}):
+            Pilih mutasi untuk <strong>{getWarga(assignModal.wargaId)?.nama || "—"}</strong> ({fmt(assignModal.nominal)}):
           </p>
           <div className="space-y-2 max-h-72 overflow-y-auto">
             {unmatched.length === 0
               ? <p className="text-center text-slate-400 text-sm py-4">Tidak ada mutasi tersedia</p>
               : unmatched.map(m => (
-                  <button key={m.id} onClick={() => handleAssign(m.id)} disabled={saving}
-                    className="w-full text-left p-3 border border-slate-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50">
+                  <button key={m.id} onClick={() => handleAssign(m.id)} disabled={saving} className="w-full text-left p-3 border border-slate-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50">
                     <p className="font-semibold text-slate-700 text-sm">{m.pengirim}</p>
                     <p className="text-xs text-slate-400">{fmtDate(m.tanggal)} · {m.keterangan}</p>
                     <p className="text-sm font-bold text-teal-600 mt-1">{fmt(m.nominal)}</p>
@@ -886,17 +820,115 @@ function AdminMatching({ state, dispatch }) {
   );
 }
 
+// ─── ADMIN: KONFIRMASI PEMBAYARAN ─────────────────────────────────────────────
+function AdminKonfirmasi({ state, dispatch }) {
+  const { pembayaran, warga } = state;
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const getWarga = (id) => warga.find(w => w.id === id);
+
+  const handleApprove = async (id) => {
+    setSaving(true);
+    try {
+      const res = await api.approvePembayaran({ pembayaranId: id });
+      if (res.ok) {
+        dispatch({ type: "UPDATE_PEMBAYARAN", payload: { id, changes: { status: "APPROVED" }, msg: "Pembayaran disetujui!", notifType: "success" } });
+      }
+    } catch (e) {
+      alert("Error: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  const handleReject = async () => {
+    if (!rejectModal) return;
+    setSaving(true);
+    try {
+      const res = await api.rejectPembayaran({ pembayaranId: rejectModal.id, note: rejectNote });
+      if (res.ok) {
+        dispatch({ type: "UPDATE_PEMBAYARAN", payload: { id: rejectModal.id, changes: { status: "REJECTED" }, msg: "Pembayaran ditolak", notifType: "warning" } });
+        setRejectModal(null);
+        setRejectNote("");
+      }
+    } catch (e) {
+      alert("Error: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  const cols = [
+    { key: "wargaNama", label: "Warga", render: (r) => getWarga(r.wargaId)?.nama || "—" },
+    { key: "nominal", label: "Nominal", render: (r) => fmt(r.nominal) },
+    { key: "tanggal", label: "Tgl", render: (r) => fmtDate(r.tanggal) },
+    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    { 
+      key: "bukti", 
+      label: "Bukti", 
+      render: (r) => r.bukti ? (
+        <a href={r.bukti} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-800 underline text-xs">
+          📎 Lihat
+        </a>
+      ) : "—"
+    },
+    {
+      key: "action",
+      label: "Action",
+      render: (r) => r.status === "PENDING" ? (
+        <div className="flex gap-2">
+          <button onClick={() => handleApprove(r.id)} disabled={saving} className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-2 py-1 rounded-lg">
+            ✓
+          </button>
+          <button onClick={() => setRejectModal(r)} disabled={saving} className="text-xs bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-2 py-1 rounded-lg">
+            ✕
+          </button>
+        </div>
+      ) : "—"
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Konfirmasi Pembayaran</h1>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <h3 className="font-bold text-slate-700 mb-4">Semua Pembayaran</h3>
+        <div className="overflow-x-auto">
+          <PaymentTable rows={pembayaran} columns={cols} />
+        </div>
+      </div>
+
+      {rejectModal && (
+        <Modal title="Tolak Pembayaran" onClose={() => setRejectModal(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">Berikan alasan penolakan:</p>
+            <textarea className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" rows={3} value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Contoh: Nominal tidak sesuai, nama pengirim berbeda…" />
+            <div className="flex gap-3">
+              <button onClick={() => setRejectModal(null)} className="flex-1 border border-slate-300 text-slate-600 py-2 rounded-xl text-sm font-semibold hover:bg-slate-50">Batal</button>
+              <button onClick={handleReject} disabled={saving} className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white py-2 rounded-xl text-sm font-semibold">
+                {saving ? "Memproses…" : "Tolak"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 // ─── NAV CONFIG ───────────────────────────────────────────────────────────────
 const USER_MENU = [
   { id: "dashboard",  label: "Dashboard", icon: "🏠" },
   { id: "qris",       label: "Cara Bayar", icon: "🏦" },
-  { id: "konfirmasi", label: "Konfirmasi",icon: "📤" },
+  { id: "konfirmasi", label: "Konfirmasi", icon: "📤" },
   { id: "riwayat",    label: "Riwayat",   icon: "📜" },
 ];
 const ADMIN_MENU = [
   { id: "admin-dashboard", label: "Dashboard",   icon: "📊" },
-  { id: "admin-mutasi",    label: "Mutasi Bank",  icon: "📁" },
-  { id: "admin-matching",  label: "Matching",     icon: "🔗" },
+  { id: "admin-mutasi",    label: "Mutasi Bank", icon: "📁" },
+  { id: "admin-matching",  label: "Matching",    icon: "🔗" },
+  { id: "admin-konfirmasi", label: "Konfirmasi", icon: "✅" },
 ];
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
@@ -905,14 +937,12 @@ export default function App() {
   const [role, setRole]   = useState("user");
   const [page, setPage]   = useState("dashboard");
 
-  // Auto-clear notifikasi
   useEffect(() => {
     if (!state.notification) return;
     const t = setTimeout(() => dispatch({ type: "CLEAR_NOTIF" }), 4000);
     return () => clearTimeout(t);
   }, [state.notification]);
 
-  // Fetch data awal dari AppScript
   const loadData = useCallback(async () => {
     dispatch({ type: "SET_LOADING", payload: true });
     try {
@@ -928,7 +958,6 @@ export default function App() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Restore session dari sessionStorage saat app load
   useEffect(() => {
     const saved = sessionStorage.getItem("ipl_session");
     if (saved) dispatch({ type: "LOGIN", payload: JSON.parse(saved) });
@@ -939,18 +968,17 @@ export default function App() {
     setPage(r === "admin" ? "admin-dashboard" : "dashboard");
   };
 
-  // Tampilkan loading / error sebelum render utama
   if (state.loading) return <LoadingScreen />;
   if (state.error)   return <ErrorScreen error={state.error} onRetry={loadData} />;
 
-  // Warga belum login → tampilkan LoginPage (admin bypass login)
+  // ✅ LOGIN CHECK - Warga harus login, Admin bypass
   if (!state.session && role === "user") return <LoginPage state={state} dispatch={dispatch} />;
 
   const menu = role === "admin" ? ADMIN_MENU : USER_MENU;
 
   const renderPage = () => {
     if (role === "user") switch (page) {
-      case "dashboard":  return <UserDashboard  state={state} dispatch={dispatch} />;
+      case "dashboard":  return <UserDashboard  state={state} />;
       case "qris":       return <QRISPage state={state} />;
       case "konfirmasi": return <UserKonfirmasi state={state} dispatch={dispatch} />;
       case "riwayat":    return <UserRiwayat    state={state} />;
@@ -960,6 +988,7 @@ export default function App() {
       case "admin-dashboard": return <AdminDashboard    state={state} />;
       case "admin-mutasi":    return <AdminUploadMutasi state={state} dispatch={dispatch} />;
       case "admin-matching":  return <AdminMatching     state={state} dispatch={dispatch} />;
+      case "admin-konfirmasi": return <AdminKonfirmasi  state={state} dispatch={dispatch} />;
       default:                return null;
     }
   };
@@ -970,21 +999,21 @@ export default function App() {
 
       {/* TOP BAR */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">🏘</div>
-            <div>
-              <p className="font-bold text-slate-800 text-sm leading-tight">Griya Asri</p>
+        <div className="max-w-full px-4 sm:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0">🏘</div>
+            <div className="hidden sm:block min-w-0">
+              <p className="font-bold text-slate-800 text-sm leading-tight">{state.config.nama_perumahan || "MANDALIKA"}</p>
               <p className="text-xs text-slate-400 leading-tight">Sistem Iuran IPL</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:gap-4">
             {role === "user" && state.session && (
-              <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-2">
                 <div className="text-right">
                   <p className="text-xs font-semibold text-slate-700">{state.session.nama}</p>
-                  <p className="text-xs text-slate-400">Blok {state.session.blok}</p>
+                  <p className="text-xs text-slate-400">Blok {state.session.blok}{state.session.nomor}</p>
                 </div>
                 <button
                   onClick={() => { dispatch({ type: "LOGOUT" }); setRole("user"); setPage("dashboard"); }}
@@ -993,26 +1022,31 @@ export default function App() {
                 </button>
               </div>
             )}
-            <div className="flex bg-slate-100 rounded-xl p-1 text-xs font-semibold">
-              {[["user","👤 Warga"],["admin","🔑 Admin"]].map(([r, label]) => (
-                <button key={r} onClick={() => handleRoleSwitch(r)}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${role === r ? "bg-white shadow text-teal-700" : "text-slate-500 hover:text-slate-700"}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
+            
+            {/* Role switcher - hanya tampilkan jika admin login */}
+            {role === "admin" && (
+              <div className="flex bg-slate-100 rounded-xl p-1 text-xs font-semibold">
+                {[["user","👤 Warga"],["admin","🔑 Admin"]].map(([r, label]) => (
+                  <button key={r} onClick={() => handleRoleSwitch(r)}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${role === r ? "bg-white shadow text-teal-700" : "text-slate-500 hover:text-slate-700"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 flex gap-6">
+      <div className="max-w-full px-4 sm:px-6 py-6 flex flex-col sm:flex-row gap-6 pb-24 sm:pb-6">
         {/* SIDEBAR desktop */}
-        <aside className="w-52 flex-shrink-0 hidden sm:block">
+        <aside className="w-full sm:w-52 flex-shrink-0">
           <nav className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 sticky top-20">
             {menu.map(m => (
               <button key={m.id} onClick={() => setPage(m.id)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all mb-1 ${page === m.id ? "bg-teal-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>
-                <span>{m.icon}</span>{m.label}
+                <span>{m.icon}</span>
+                <span className="hidden sm:inline">{m.label}</span>
               </button>
             ))}
           </nav>
@@ -1022,11 +1056,20 @@ export default function App() {
         <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 z-30 flex justify-around">
           {menu.map(m => (
             <button key={m.id} onClick={() => setPage(m.id)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-xs transition-all ${page === m.id ? "text-teal-600 font-bold" : "text-slate-400"}`}>
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-xs transition-all ${page === m.id ? "text-teal-600 font-bold" : "text-slate-400"}`}>
               <span className="text-xl">{m.icon}</span>
-              <span>{m.label}</span>
+              <span className="truncate max-w-[50px]">{m.label}</span>
             </button>
           ))}
+          
+          {/* Mobile logout button */}
+          {role === "user" && state.session && (
+            <button onClick={() => { dispatch({ type: "LOGOUT" }); setRole("user"); setPage("dashboard"); }}
+              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-xs text-red-500 hover:bg-red-50">
+              <span className="text-xl">🚪</span>
+              <span className="truncate max-w-[50px]">Keluar</span>
+            </button>
+          )}
         </div>
 
         <main className="flex-1 min-w-0 pb-20 sm:pb-0">
