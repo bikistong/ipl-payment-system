@@ -3,7 +3,7 @@ import { useState, useReducer, useRef, useEffect, useCallback } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 // 🔧 KONFIGURASI
 // ─────────────────────────────────────────────────────────────────────────────
-const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbyBRxW7uUQerFce08kZBLzM55nNgApacQOpIkc-P-vuWNcts8rtfSenlka4csMhpB240w/exec";
+const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbxydDrzeS04G-Ny_dzpQNXcv6gWeoVmr2BtCA9LykOtgDPKzq_ORrvvMNQgWegj7an-1w/exec";
 
 // ─── API LAYER ────────────────────────────────────────────────────────────────
 const api = {
@@ -957,6 +957,14 @@ export default function App() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Auto-switch ke admin jika session.isAdmin = true
+  useEffect(() => {
+    if (state.session?.isAdmin === true) {
+      setRole("admin");
+      setPage("admin-dashboard");
+    }
+  }, [state.session?.isAdmin]);
 
   useEffect(() => {
     const saved = sessionStorage.getItem("ipl_session");
