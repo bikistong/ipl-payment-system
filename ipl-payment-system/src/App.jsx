@@ -3,7 +3,7 @@ import { useState, useReducer, useRef, useEffect, useCallback } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 // 🔧 KONFIGURASI
 // ─────────────────────────────────────────────────────────────────────────────
-const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbyBRxW7uUQerFce08kZBLzM55nNgApacQOpIkc-P-vuWNcts8rtfSenlka4csMhpB240w/exec";
+const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbxjGtr7Ocrh2yjHzHXKOWt0kMGGD1UFsf9-Y2lp0bakY3w7C4Xkb7Ijw8xPkG53lsEIcA/exec";
 
 // ─── API LAYER ────────────────────────────────────────────────────────────────
 const api = {
@@ -280,34 +280,47 @@ function ErrorScreen({ error, onRetry }) {
   );
 }
 
-// ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
-// ─── USER: LOGIN PAGE (UPDATED dengan SEARCH BOX) ──────────────────────────
+// ─── USER: LOGIN PAGE (SIMPLIFIED) ──────────────────────────────────────────
 function LoginPage({ state, dispatch }) {
-  const [selectedId, setSelectedId] = useState("");
+  const [searchText, setSearchText] = useState("");
   const [pin, setPin]               = useState("");
   const [error, setError]           = useState("");
   const [loading, setLoading]       = useState(false);
   const [showPin, setShowPin]       = useState(false);
-  const [searchText, setSearchText] = useState(""); // ← NEW: Search
 
-  // Filter warga berdasarkan search text
+  // Filter & auto-select warga
   const filteredWarga = state.warga.filter(w =>
     w.nama.toLowerCase().includes(searchText.toLowerCase()) ||
     (w.blok + (w.nomor || "")).toLowerCase().includes(searchText.toLowerCase())
   );
 
+  // Auto-select jika hanya 1 hasil
+  const selectedWarga = filteredWarga.length === 1 ? filteredWarga[0] : null;
+  const selectedId = selectedWarga?.id || "";
+
   const handleLogin = async () => {
-    if (!selectedId) { setError("Pilih nama warga dulu"); return; }
-    if (!pin)        { setError("Masukkan PIN"); return; }
+    if (!selectedId) { 
+      setError("Cari dan pilih warga dulu");
+      return; 
+    }
+    if (!pin) { 
+      setError("Masukkan PIN");
+      return; 
+    }
+    
     setError("");
     setLoading(true);
+    
     try {
       const res = await fetch(
         `${APPSCRIPT_URL}?action=login&id_warga=${selectedId}&pin=${pin}`
       ).then(r => r.json());
 
-      if (!res.ok) { setError(res.msg || "Login gagal"); }
-      else         { dispatch({ type: "LOGIN", payload: res.data }); }
+      if (!res.ok) { 
+        setError(res.msg || "Login gagal");
+      } else { 
+        dispatch({ type: "LOGIN", payload: res.data });
+      }
     } catch {
       setError("Gagal terhubung ke server");
     } finally {
@@ -318,81 +331,87 @@ function LoginPage({ state, dispatch }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
+        {/* HEADER */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-yellow-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-md">⭐</div>
-          <h1 className="text-xl font-bold text-slate-800">Mandalika Residence</h1>
-          <p className="text-slate-500 text-sm">Sistem Iuran IPL</p>
+          <h1 className="text-2xl font-bold text-slate-800">Mandalika Residence</h1>
+          <p className="text-slate-500 text-sm mt-1">Sistem Iuran IPL</p>
         </div>
 
+        {/* FORM */}
         <div className="space-y-4">
-          {/* SEARCH BOX - NEW */}
+          {/* SEARCH INPUT */}
           <div>
-            <label className="block text-sm font-semibold text-slate-600 mb-1">Cari Warga</label>
+            <label className="block text-sm font-semibold text-slate-600 mb-2">
+              Cari Warga
+            </label>
             <input
               type="text"
               placeholder="Ketik nama atau blok nomor..."
-              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+              className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
               value={searchText}
-              onChange={e => { setSearchText(e.target.value); setError(""); }}
+              onChange={e => { 
+                setSearchText(e.target.value);
+                setError(""); 
+              }}
+              autoFocus
             />
+            
+            {/* HASIL SEARCH */}
+            {searchText && (
+              <div className="mt-2 bg-slate-50 rounded-xl p-3 text-xs text-slate-600">
+                {filteredWarga.length === 0
+                  ? <p>❌ Tidak ada yang cocok</p>
+                  : filteredWarga.length === 1
+                    ? <p>✅ {filteredWarga[0].nama} — Blok {filteredWarga[0].blok}{filteredWarga[0].nomor || ""}</p>
+                    : <p>📋 {filteredWarga.length} hasil ditemukan (lanjutkan ketik untuk filter)</p>
+                }
+              </div>
+            )}
           </div>
 
-          {/* FILTERED SELECT */}
+          {/* PIN INPUT */}
           <div>
-            <label className="block text-sm font-semibold text-slate-600 mb-1">Nama Warga</label>
-            <select
-              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
-              value={selectedId}
-              onChange={e => { setSelectedId(e.target.value); setError(""); }}>
-              <option value="">— Pilih nama —</option>
-              {filteredWarga.length === 0
-                ? <option disabled>Tidak ada yang cocok</option>
-                : filteredWarga.map(w => (
-                    <option key={w.id} value={w.id}>
-                      {w.nama} — Blok {w.blok}{w.nomor || ""}
-                    </option>
-                  ))}
-            </select>
-          </div>
-
-          {/* PIN */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-600 mb-1">PIN</label>
+            <label className="block text-sm font-semibold text-slate-600 mb-2">PIN</label>
             <div className="relative">
               <input
                 type={showPin ? "text" : "password"}
                 maxLength={6}
-                placeholder="Masukkan PIN"
-                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 pr-10 tracking-widest"
+                placeholder="Masukkan PIN (6 digit)"
+                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 pr-12 tracking-widest font-mono"
                 value={pin}
-                onChange={e => { setPin(e.target.value); setError(""); }}
+                onChange={e => { 
+                  setPin(e.target.value.replace(/\D/g, ""));
+                  setError(""); 
+                }}
                 onKeyDown={e => e.key === "Enter" && handleLogin()}
               />
               <button
                 type="button"
                 onClick={() => setShowPin(s => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg">
                 {showPin ? "🙈" : "👁"}
               </button>
             </div>
           </div>
 
-          {/* ERROR */}
+          {/* ERROR MESSAGE */}
           {error && (
-            <p className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              ⚠️ {error}
-            </p>
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <p className="text-red-600 text-sm font-medium">⚠️ {error}</p>
+            </div>
           )}
 
-          {/* BUTTON */}
+          {/* LOGIN BUTTON */}
           <button
             onClick={handleLogin}
-            disabled={loading || state.loading}
-            className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
-            {loading ? "Memverifikasi…" : "Masuk"}
+            disabled={loading || state.loading || !selectedId}
+            className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
+            {loading ? "🔄 Memverifikasi…" : "Masuk"}
           </button>
 
-          <p className="text-center text-xs text-slate-400 mt-2">
+          {/* FOOTER */}
+          <p className="text-center text-xs text-slate-400 mt-4">
             Lupa PIN? Hubungi pengurus RT
           </p>
         </div>
@@ -461,14 +480,14 @@ function QRISPage({ state }) {
           <div className="text-3xl">🏦</div>
           <div>
             <h2 className="font-bold text-slate-800">Informasi Rekening</h2>
-            <p className="text-sm text-slate-500">{config.bank_name || "BCA"}</p>
+            <p className="text-sm text-slate-500">{config.bank_name || "SEA BANK"}</p>
           </div>
         </div>
 
         <div className="bg-slate-50 rounded-xl p-4 space-y-2">
           <p className="text-xs text-slate-500 uppercase">Nomor Rekening</p>
-          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "1234567890"}</p>
-          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "Yayasan Griya Asri"}</p>
+          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "901025974294"}</p>
+          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "EGI MARTIN SETIAWAN"}</p>
         </div>
 
         <div className="space-y-2">
@@ -1116,11 +1135,17 @@ export default function App() {
   const [role, setRole]   = useState("user");
   const [page, setPage]   = useState("dashboard");
 
-  useEffect(() => {
-    if (!state.notification) return;
-    const t = setTimeout(() => dispatch({ type: "CLEAR_NOTIF" }), 4000);
-    return () => clearTimeout(t);
-  }, [state.notification]);
+useEffect(() => {
+  const saved = sessionStorage.getItem("ipl_session");
+  if (saved) dispatch({ type: "LOGIN", payload: JSON.parse(saved) });},[]);
+
+// ✨ AUTO-SWITCH KE ADMIN JIKA session.isAdmin = true
+useEffect(() => {
+  if (state.session?.isAdmin === true) {
+    setRole("admin");
+    setPage("admin-dashboard");
+  }
+}, [state.session?.isAdmin]);  
 
   const loadData = useCallback(async () => {
     dispatch({ type: "SET_LOADING", payload: true });
