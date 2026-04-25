@@ -3,7 +3,7 @@ import { useState, useReducer, useRef, useEffect, useCallback } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 // 🔧 KONFIGURASI
 // ─────────────────────────────────────────────────────────────────────────────
-const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbxydDrzeS04G-Ny_dzpQNXcv6gWeoVmr2BtCA9LykOtgDPKzq_ORrvvMNQgWegj7an-1w/exec";
+const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbyBRxW7uUQerFce08kZBLzM55nNgApacQOpIkc-P-vuWNcts8rtfSenlka4csMhpB240w/exec";
 
 // ─── API LAYER ────────────────────────────────────────────────────────────────
 const api = {
@@ -97,7 +97,7 @@ function reducer(state, action) {
         pembayaran:   action.payload.pembayaran || [],
         mutasi:       action.payload.mutasi     || [],
         config:       action.payload.config     || {},
-        currentWarga: action.payload.warga?.[0] || null,
+        currentWarga: state.session || action.payload.warga?.[0] || null,
       };
 
     case "SET_WARGA":
@@ -281,12 +281,20 @@ function ErrorScreen({ error, onRetry }) {
 }
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
+// ─── USER: LOGIN PAGE (UPDATED dengan SEARCH BOX) ──────────────────────────
 function LoginPage({ state, dispatch }) {
   const [selectedId, setSelectedId] = useState("");
   const [pin, setPin]               = useState("");
   const [error, setError]           = useState("");
   const [loading, setLoading]       = useState(false);
   const [showPin, setShowPin]       = useState(false);
+  const [searchText, setSearchText] = useState(""); // ← NEW: Search
+
+  // Filter warga berdasarkan search text
+  const filteredWarga = state.warga.filter(w =>
+    w.nama.toLowerCase().includes(searchText.toLowerCase()) ||
+    (w.blok + (w.nomor || "")).toLowerCase().includes(searchText.toLowerCase())
+  );
 
   const handleLogin = async () => {
     if (!selectedId) { setError("Pilih nama warga dulu"); return; }
@@ -311,12 +319,25 @@ function LoginPage({ state, dispatch }) {
     <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-md">🏘</div>
-          <h1 className="text-xl font-bold text-slate-800">{state.config.nama_perumahan || "MANDALIKA"}</h1>
+          <div className="w-16 h-16 bg-yellow-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-md">⭐</div>
+          <h1 className="text-xl font-bold text-slate-800">Mandalika Residence</h1>
           <p className="text-slate-500 text-sm">Sistem Iuran IPL</p>
         </div>
 
         <div className="space-y-4">
+          {/* SEARCH BOX - NEW */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-600 mb-1">Cari Warga</label>
+            <input
+              type="text"
+              placeholder="Ketik nama atau blok nomor..."
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+              value={searchText}
+              onChange={e => { setSearchText(e.target.value); setError(""); }}
+            />
+          </div>
+
+          {/* FILTERED SELECT */}
           <div>
             <label className="block text-sm font-semibold text-slate-600 mb-1">Nama Warga</label>
             <select
@@ -324,12 +345,17 @@ function LoginPage({ state, dispatch }) {
               value={selectedId}
               onChange={e => { setSelectedId(e.target.value); setError(""); }}>
               <option value="">— Pilih nama —</option>
-              {state.warga.map(w => (
-                <option key={w.id} value={w.id}>{w.nama} — Blok {w.blok}{w.nomor}</option>
-              ))}
+              {filteredWarga.length === 0
+                ? <option disabled>Tidak ada yang cocok</option>
+                : filteredWarga.map(w => (
+                    <option key={w.id} value={w.id}>
+                      {w.nama} — Blok {w.blok}{w.nomor || ""}
+                    </option>
+                  ))}
             </select>
           </div>
 
+          {/* PIN */}
           <div>
             <label className="block text-sm font-semibold text-slate-600 mb-1">PIN</label>
             <div className="relative">
@@ -351,12 +377,14 @@ function LoginPage({ state, dispatch }) {
             </div>
           </div>
 
+          {/* ERROR */}
           {error && (
             <p className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               ⚠️ {error}
             </p>
           )}
 
+          {/* BUTTON */}
           <button
             onClick={handleLogin}
             disabled={loading || state.loading}
@@ -372,7 +400,6 @@ function LoginPage({ state, dispatch }) {
     </div>
   );
 }
-
 // ─── USER: DASHBOARD ──────────────────────────────────────────────────────────
 function UserDashboard({ state }) {
   const { currentWarga, pembayaran, tagihan } = state;
@@ -623,6 +650,157 @@ function UserKonfirmasi({ state, dispatch }) {
 }
 
 // ─── USER: RIWAYAT ────────────────────────────────────────────────────────────
+// ─── USER: PENGATURAN (GANTI PIN) ────────────────────────────────────────
+function UserPengaturan({ state, dispatch }) {
+  const { currentWarga } = state;
+  if (!currentWarga) return null;
+
+  const [pinLama, setPinLama] = useState("");
+  const [pinBaru, setPinBaru] = useState("");
+  const [pinBaru2, setPinBaru2] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+
+  const handleGantiPin = async () => {
+    setError("");
+    setSuccess(false);
+
+    if (!pinLama) { setError("PIN lama wajib diisi"); return; }
+    if (!pinBaru) { setError("PIN baru wajib diisi"); return; }
+    if (pinBaru.length !== 6) { setError("PIN harus 6 digit"); return; }
+    if (!pinBaru2) { setError("Konfirmasi PIN wajib diisi"); return; }
+    if (pinBaru !== pinBaru2) { setError("PIN baru tidak cocok"); return; }
+    if (pinLama === pinBaru) { setError("PIN baru harus berbeda dengan PIN lama"); return; }
+
+    setLoading(true);
+    try {
+      const loginRes = await fetch(
+        `${APPSCRIPT_URL}?action=login&id_warga=${currentWarga.id}&pin=${pinLama}`
+      ).then(r => r.json());
+
+      if (!loginRes.ok) {
+        setError("PIN lama salah");
+        setLoading(false);
+        return;
+      }
+
+      const updateRes = await fetch(APPSCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          action: "updatePin",
+          id_warga: currentWarga.id,
+          pin_baru: pinBaru,
+        }),
+      }).then(r => r.json());
+
+      if (!updateRes.ok) {
+        setError("Gagal update PIN: " + updateRes.msg);
+      } else {
+        setSuccess(true);
+        setPinLama("");
+        setPinBaru("");
+        setPinBaru2("");
+        setTimeout(() => setSuccess(false), 5000);
+      }
+    } catch (e) {
+      setError("Terjadi kesalahan: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Pengaturan</h1>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800 mb-4">🔐 Ganti PIN</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-600 mb-1">PIN Lama</label>
+              <div className="relative">
+                <input
+                  type={showPin ? "text" : "password"}
+                  maxLength={6}
+                  placeholder="Masukkan PIN lama"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 pr-10 tracking-widest"
+                  value={pinLama}
+                  onChange={e => { setPinLama(e.target.value); setError(""); }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPin(s => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">
+                  {showPin ? "🙈" : "👁"}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-600 mb-1">PIN Baru (6 digit)</label>
+              <input
+                type={showPin ? "text" : "password"}
+                maxLength={6}
+                placeholder="Masukkan PIN baru"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 tracking-widest"
+                value={pinBaru}
+                onChange={e => { setPinBaru(e.target.value); setError(""); }}
+              />
+              <p className="text-xs text-slate-400 mt-1">Gunakan 6 digit angka</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-600 mb-1">Konfirmasi PIN Baru</label>
+              <input
+                type={showPin ? "text" : "password"}
+                maxLength={6}
+                placeholder="Ketik ulang PIN baru"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 tracking-widest"
+                value={pinBaru2}
+                onChange={e => { setPinBaru2(e.target.value); setError(""); }}
+              />
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <p className="text-red-600 text-sm">⚠️ {error}</p>
+              </div>
+            )}
+
+            {success && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
+                <p className="text-emerald-600 text-sm">✅ PIN berhasil diubah! Gunakan PIN baru untuk login selanjutnya.</p>
+              </div>
+            )}
+
+            <button
+              onClick={handleGantiPin}
+              disabled={loading}
+              className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors">
+              {loading ? "Memproses…" : "Ganti PIN"}
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+          <p className="text-sm font-semibold text-blue-800">💡 Tips Keamanan:</p>
+          <ul className="text-xs text-blue-700 space-y-1">
+            <li>• Jangan bagikan PIN ke siapapun</li>
+            <li>• Gunakan PIN yang mudah diingat tapi sulit ditebak</li>
+            <li>• Jangan gunakan tanggal lahir atau nomor rumah</li>
+            <li>• Ganti PIN secara berkala untuk keamanan</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UserRiwayat({ state }) {
   const { currentWarga, pembayaran } = state;
   if (!currentWarga) return null;
@@ -923,6 +1101,7 @@ const USER_MENU = [
   { id: "qris",       label: "Cara Bayar", icon: "🏦" },
   { id: "konfirmasi", label: "Konfirmasi", icon: "📤" },
   { id: "riwayat",    label: "Riwayat",   icon: "📜" },
+  { id: "pengaturan", label: "Pengaturan", icon: "⚙️" },
 ];
 const ADMIN_MENU = [
   { id: "admin-dashboard", label: "Dashboard",   icon: "📊" },
@@ -990,6 +1169,7 @@ export default function App() {
       case "qris":       return <QRISPage state={state} />;
       case "konfirmasi": return <UserKonfirmasi state={state} dispatch={dispatch} />;
       case "riwayat":    return <UserRiwayat    state={state} />;
+    case "pengaturan": return <UserPengaturan state={state} dispatch={dispatch} />; // ← NEW
       default:           return null;
     }
     switch (page) {
