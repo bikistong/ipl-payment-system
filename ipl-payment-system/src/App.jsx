@@ -1116,6 +1116,266 @@ function AdminKonfirmasi({ state, dispatch }) {
   );
 }
 
+// ─── ADMIN: LAPORAN PEMBAYARAN ────────────────────────────────────────────────
+function AdminLaporan({ state }) {
+  const { pembayaran, warga, mutasi } = state;
+
+  // Filter state
+  const [filterStatus, setFilterStatus] = useState("ALL");
+  const [filterBulan, setFilterBulan] = useState("");
+  const [searchWarga, setSearchWarga] = useState("");
+  const [sortBy, setSortBy] = useState("tanggal-desc");
+
+  // Get warga detail
+  const getWarga = (id) => warga.find(w => w.id === id);
+
+  // Apply filters
+  let filtered = pembayaran;
+
+  if (filterStatus !== "ALL") {
+    filtered = filtered.filter(p => p.status === filterStatus);
+  }
+
+  if (filterBulan) {
+    filtered = filtered.filter(p => p.tanggal?.startsWith(filterBulan));
+  }
+
+  if (searchWarga) {
+    const search = searchWarga.toLowerCase();
+    filtered = filtered.filter(p => {
+      const w = getWarga(p.wargaId);
+      return w && (w.nama.toLowerCase().includes(search) || w.blok.toLowerCase().includes(search));
+    });
+  }
+
+  // Sort
+  if (sortBy === "tanggal-desc") {
+    filtered = [...filtered].sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+  } else if (sortBy === "tanggal-asc") {
+    filtered = [...filtered].sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
+  } else if (sortBy === "nominal-desc") {
+    filtered = [...filtered].sort((a, b) => b.nominal - a.nominal);
+  } else if (sortBy === "nominal-asc") {
+    filtered = [...filtered].sort((a, b) => a.nominal - b.nominal);
+  }
+
+  // Summary stats
+  const stats = {
+    total: pembayaran.length,
+    pending: pembayaran.filter(p => p.status === "PENDING").length,
+    matched: pembayaran.filter(p => p.status === "MATCHED").length,
+    approved: pembayaran.filter(p => p.status === "APPROVED").length,
+    rejected: pembayaran.filter(p => p.status === "REJECTED").length,
+    totalNominal: pembayaran.reduce((s, p) => s + p.nominal, 0),
+    approvedNominal: pembayaran.filter(p => p.status === "APPROVED").reduce((s, p) => s + p.nominal, 0),
+    filteredCount: filtered.length,
+    filteredNominal: filtered.reduce((s, p) => s + p.nominal, 0),
+  };
+
+  // Export CSV
+  const handleExport = () => {
+    const headers = ["ID Pembayaran", "Warga", "Blok", "Nominal", "Tanggal", "Status", "Mutasi ID", "Catatan"];
+    const rows = filtered.map(p => {
+      const w = getWarga(p.wargaId);
+      return [
+        p.id,
+        w?.nama || "—",
+        w?.blok || "—",
+        p.nominal,
+        p.tanggal,
+        p.status,
+        p.mutasiId || "—",
+        p.catatan || "—",
+      ];
+    });
+
+    const csv = [
+      headers.join(","),
+      ...rows.map(r => r.map(v => `"${v}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `laporan-pembayaran-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+  };
+
+  const cols = [
+    { key: "id", label: "ID", width: "80px" },
+    { key: "warga", label: "Warga", render: (r) => {
+      const w = getWarga(r.wargaId);
+      return w ? `${w.nama} (${w.blok})` : "—";
+    }},
+    { key: "nominal", label: "Nominal", render: (r) => fmt(r.nominal) },
+    { key: "tanggal", label: "Tanggal", render: (r) => fmtDate(r.tanggal) },
+    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    { key: "bukti", label: "Bukti", render: (r) => r.bukti ? (
+      <a href={r.bukti} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-800 underline text-xs">
+        📎 Lihat
+      </a>
+    ) : "—" },
+    { key: "catatan", label: "Catatan", render: (r) => <span className="text-xs">{r.catatan || "—"}</span> },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Laporan Pembayaran</h1>
+        <button onClick={handleExport} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-xl flex items-center justify-center gap-2">
+          📥 Export CSV
+        </button>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <DashboardCard icon="📊" label="Total" value={stats.total} color="blue" />
+        <DashboardCard icon="⏳" label="Pending" value={stats.pending} color="amber" />
+        <DashboardCard icon="🔗" label="Matched" value={stats.matched} color="purple" />
+        <DashboardCard icon="✅" label="Approved" value={stats.approved} color="emerald" />
+        <DashboardCard icon="❌" label="Rejected" value={stats.rejected} color="rose" />
+      </div>
+
+      {/* NOMINAL SUMMARY */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase font-semibold mb-2">Total Nominal (Semua)</p>
+          <p className="text-2xl font-bold text-slate-800">{fmt(stats.totalNominal)}</p>
+          <p className="text-xs text-slate-400 mt-2">{stats.total} pembayaran</p>
+        </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase font-semibold mb-2">Total Approved</p>
+          <p className="text-2xl font-bold text-emerald-600">{fmt(stats.approvedNominal)}</p>
+          <p className="text-xs text-slate-400 mt-2">{stats.approved} pembayaran</p>
+        </div>
+      </div>
+
+      {/* FILTERS */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
+        <h3 className="font-bold text-slate-700">Filter & Cari</h3>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Status Filter */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Status</label>
+            <select 
+              value={filterStatus} 
+              onChange={e => setFilterStatus(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option value="ALL">Semua</option>
+              <option value="PENDING">PENDING</option>
+              <option value="MATCHED">MATCHED</option>
+              <option value="APPROVED">APPROVED</option>
+              <option value="REJECTED">REJECTED</option>
+            </select>
+          </div>
+
+          {/* Month Filter */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Bulan</label>
+            <input 
+              type="month" 
+              value={filterBulan} 
+              onChange={e => setFilterBulan(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"/>
+          </div>
+
+          {/* Search Warga */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Cari Warga/Blok</label>
+            <input 
+              type="text" 
+              placeholder="Nama atau blok..." 
+              value={searchWarga} 
+              onChange={e => setSearchWarga(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"/>
+          </div>
+
+          {/* Sort */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Urutkan</label>
+            <select 
+              value={sortBy} 
+              onChange={e => setSortBy(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option value="tanggal-desc">Tanggal (Terbaru)</option>
+              <option value="tanggal-asc">Tanggal (Terlama)</option>
+              <option value="nominal-desc">Nominal (Terbesar)</option>
+              <option value="nominal-asc">Nominal (Terkecil)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Reset Button */}
+        <button 
+          onClick={() => {
+            setFilterStatus("ALL");
+            setFilterBulan("");
+            setSearchWarga("");
+            setSortBy("tanggal-desc");
+          }}
+          className="text-sm text-slate-500 hover:text-slate-700 border border-slate-300 hover:border-slate-400 px-4 py-2 rounded-lg transition-colors">
+          🔄 Reset Filter
+        </button>
+      </div>
+
+      {/* FILTERED RESULT INFO */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+        <p className="text-sm text-slate-600">
+          <strong>{stats.filteredCount}</strong> pembayaran ditemukan 
+          {filterStatus !== "ALL" && ` dengan status <strong>${filterStatus}</strong>`}
+          {filterBulan && ` pada bulan <strong>${filterBulan}</strong>`}
+          {searchWarga && ` untuk <strong>${searchWarga}</strong>`}
+          <br />
+          <strong>Total nominal:</strong> {fmt(stats.filteredNominal)}
+        </p>
+      </div>
+
+      {/* TABLE */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <h3 className="font-bold text-slate-700 mb-4">Detail Pembayaran</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {cols.map(c => (
+                  <th key={c.key} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap" style={{ width: c.width }}>
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0
+                ? <tr><td colSpan={cols.length} className="text-center py-10 text-slate-400 italic">Tidak ada data</td></tr>
+                : filtered.map((row, i) => (
+                  <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    {cols.map(c => (
+                      <td key={c.key} className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                        {c.render ? c.render(row) : row[c.key]}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* EXPORT NOTE */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700 space-y-2">
+        <p className="font-semibold">💡 Tips:</p>
+        <ul className="text-xs space-y-1 ml-4">
+          <li>✓ Filter & sort untuk lihat data spesifik</li>
+          <li>✓ Export CSV untuk laporan ke finance/accounting</li>
+          <li>✓ Klik link 📎 untuk verify bukti transfer di Google Drive</li>
+          <li>✓ Reset filter untuk lihat semua data lagi</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 // ─── NAV CONFIG ───────────────────────────────────────────────────────────────
 const USER_MENU = [
   { id: "dashboard",  label: "Dashboard", icon: "🏠" },
@@ -1127,6 +1387,7 @@ const USER_MENU = [
 const ADMIN_MENU = [
   { id: "admin-dashboard", label: "Dashboard",   icon: "📊" },
   { id: "admin-mutasi",    label: "Mutasi Bank", icon: "📁" },
+  { id: "admin-laporan", label: "Laporan", icon: "📋" },
   { id: "admin-matching",  label: "Matching",    icon: "🔗" },
   { id: "admin-konfirmasi", label: "Konfirmasi", icon: "✅" },
 ];
@@ -1194,6 +1455,7 @@ export default function App() {
     switch (page) {
       case "admin-dashboard": return <AdminDashboard    state={state} />;
       case "admin-mutasi":    return <AdminUploadMutasi state={state} dispatch={dispatch} />;
+      case "admin-laporan": return <AdminLaporan state={state} />;
       case "admin-matching":  return <AdminMatching     state={state} dispatch={dispatch} />;
       case "admin-konfirmasi": return <AdminKonfirmasi  state={state} dispatch={dispatch} />;
       default:                return null;
