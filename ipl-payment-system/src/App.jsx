@@ -108,7 +108,7 @@ function reducer(state, action) {
         ...state,
         saving: false,
         pembayaran: [...state.pembayaran, action.payload],
-        notification: { type: "success", msg: "Konfirmasi pembayaran terkirim! Status: PENDING" },
+        notification: { type: "success", msg: "✅ Konfirmasi pembayaran terkirim! Status: PENDING" },
       };
 
     case "UPDATE_PEMBAYARAN": {
@@ -280,7 +280,7 @@ function ErrorScreen({ error, onRetry }) {
   );
 }
 
-// ─── USER: LOGIN PAGE (SIMPLIFIED) ──────────────────────────────────────────
+// ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
 function LoginPage({ state, dispatch }) {
   const [searchText, setSearchText] = useState("");
   const [pin, setPin]               = useState("");
@@ -288,39 +288,26 @@ function LoginPage({ state, dispatch }) {
   const [loading, setLoading]       = useState(false);
   const [showPin, setShowPin]       = useState(false);
 
-  // Filter & auto-select warga
   const filteredWarga = state.warga.filter(w =>
     w.nama.toLowerCase().includes(searchText.toLowerCase()) ||
     (w.blok + (w.nomor || "")).toLowerCase().includes(searchText.toLowerCase())
   );
 
-  // Auto-select jika hanya 1 hasil
   const selectedWarga = filteredWarga.length === 1 ? filteredWarga[0] : null;
   const selectedId = selectedWarga?.id || "";
 
   const handleLogin = async () => {
-    if (!selectedId) { 
-      setError("Cari dan pilih warga dulu");
-      return; 
-    }
-    if (!pin) { 
-      setError("Masukkan PIN");
-      return; 
-    }
-    
+    if (!selectedId) { setError("Cari dan pilih warga dulu"); return; }
+    if (!pin)        { setError("Masukkan PIN"); return; }
     setError("");
     setLoading(true);
-    
     try {
       const res = await fetch(
         `${APPSCRIPT_URL}?action=login&id_warga=${selectedId}&pin=${pin}`
       ).then(r => r.json());
 
-      if (!res.ok) { 
-        setError(res.msg || "Login gagal");
-      } else { 
-        dispatch({ type: "LOGIN", payload: res.data });
-      }
+      if (!res.ok) { setError(res.msg || "Login gagal"); }
+      else         { dispatch({ type: "LOGIN", payload: res.data }); }
     } catch {
       setError("Gagal terhubung ke server");
     } finally {
@@ -331,46 +318,35 @@ function LoginPage({ state, dispatch }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
-        {/* HEADER */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-yellow-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-md">⭐</div>
-          <h1 className="text-2xl font-bold text-slate-800">Mandalika Residence</h1>
-          <p className="text-slate-500 text-sm mt-1">Sistem Iuran IPL</p>
+          <h1 className="text-xl font-bold text-slate-800">Mandalika Residence</h1>
+          <p className="text-slate-500 text-sm">Sistem Iuran IPL</p>
         </div>
 
-        {/* FORM */}
         <div className="space-y-4">
-          {/* SEARCH INPUT */}
           <div>
-            <label className="block text-sm font-semibold text-slate-600 mb-2">
-              Cari Warga
-            </label>
+            <label className="block text-sm font-semibold text-slate-600 mb-2">Cari Warga</label>
             <input
               type="text"
               placeholder="Ketik nama atau blok nomor..."
               className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
               value={searchText}
-              onChange={e => { 
-                setSearchText(e.target.value);
-                setError(""); 
-              }}
+              onChange={e => { setSearchText(e.target.value); setError(""); }}
               autoFocus
             />
-            
-            {/* HASIL SEARCH */}
             {searchText && (
               <div className="mt-2 bg-slate-50 rounded-xl p-3 text-xs text-slate-600">
                 {filteredWarga.length === 0
                   ? <p>❌ Tidak ada yang cocok</p>
                   : filteredWarga.length === 1
                     ? <p>✅ {filteredWarga[0].nama} — Blok {filteredWarga[0].blok}{filteredWarga[0].nomor || ""}</p>
-                    : <p>📋 {filteredWarga.length} hasil ditemukan (lanjutkan ketik untuk filter)</p>
+                    : <p>📋 {filteredWarga.length} hasil ditemukan</p>
                 }
               </div>
             )}
           </div>
 
-          {/* PIN INPUT */}
           <div>
             <label className="block text-sm font-semibold text-slate-600 mb-2">PIN</label>
             <div className="relative">
@@ -380,10 +356,7 @@ function LoginPage({ state, dispatch }) {
                 placeholder="Masukkan PIN (6 digit)"
                 className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 pr-12 tracking-widest font-mono"
                 value={pin}
-                onChange={e => { 
-                  setPin(e.target.value.replace(/\D/g, ""));
-                  setError(""); 
-                }}
+                onChange={e => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
                 onKeyDown={e => e.key === "Enter" && handleLogin()}
               />
               <button
@@ -395,14 +368,12 @@ function LoginPage({ state, dispatch }) {
             </div>
           </div>
 
-          {/* ERROR MESSAGE */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
               <p className="text-red-600 text-sm font-medium">⚠️ {error}</p>
             </div>
           )}
 
-          {/* LOGIN BUTTON */}
           <button
             onClick={handleLogin}
             disabled={loading || state.loading || !selectedId}
@@ -410,7 +381,6 @@ function LoginPage({ state, dispatch }) {
             {loading ? "🔄 Memverifikasi…" : "Masuk"}
           </button>
 
-          {/* FOOTER */}
           <p className="text-center text-xs text-slate-400 mt-4">
             Lupa PIN? Hubungi pengurus RT
           </p>
@@ -419,6 +389,7 @@ function LoginPage({ state, dispatch }) {
     </div>
   );
 }
+
 // ─── USER: DASHBOARD ──────────────────────────────────────────────────────────
 function UserDashboard({ state }) {
   const { currentWarga, pembayaran, tagihan } = state;
@@ -437,7 +408,7 @@ function UserDashboard({ state }) {
         Selamat datang, {currentWarga.nama} 👋
       </h1>
       <p className="text-slate-600 text-sm">
-        Blok {currentWarga.blok}{currentWarga.nomor} — {currentWarga.alamat || ""}
+        Blok {currentWarga.blok}{currentWarga.nomor || ""} — {currentWarga.alamat || ""}
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -453,7 +424,7 @@ function UserDashboard({ state }) {
             {belumLunas.map(t => (
               <div key={t.id} className="flex items-center justify-between p-4 bg-rose-50 rounded-xl border border-rose-200">
                 <div>
-                  <p className="font-semibold text-slate-700">{t.deskripsi || "Iuran IPL"}</p>
+                  <p className="font-semibold text-slate-700">{t.keterangan || "Iuran IPL"}</p>
                   <p className="text-xs text-slate-500">Jatuh tempo: {fmtDate(t.jatuhTempo)}</p>
                 </div>
                 <p className="font-bold text-rose-600">{fmt(t.nominal)}</p>
@@ -480,14 +451,14 @@ function QRISPage({ state }) {
           <div className="text-3xl">🏦</div>
           <div>
             <h2 className="font-bold text-slate-800">Informasi Rekening</h2>
-            <p className="text-sm text-slate-500">{config.bank_name || "SEA BANK"}</p>
+            <p className="text-sm text-slate-500">{config.bank_name || "BCA"}</p>
           </div>
         </div>
 
         <div className="bg-slate-50 rounded-xl p-4 space-y-2">
           <p className="text-xs text-slate-500 uppercase">Nomor Rekening</p>
-          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "901025974294"}</p>
-          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "EGI MARTIN SETIAWAN"}</p>
+          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "1234567890"}</p>
+          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "Yayasan Griya Asri"}</p>
         </div>
 
         <div className="space-y-2">
@@ -520,7 +491,7 @@ function QRISPage({ state }) {
   );
 }
 
-// ─── USER: KONFIRMASI PEMBAYARAN ──────────────────────────────────────────────
+// ─── USER: KONFIRMASI PEMBAYARAN (FIXED) ──────────────────────────────────────
 function UserKonfirmasi({ state, dispatch }) {
   const { currentWarga, pembayaran, tagihan } = state;
   if (!currentWarga) return null;
@@ -535,61 +506,93 @@ function UserKonfirmasi({ state, dispatch }) {
   const tagihanBelumLunas = tagihan.filter(t => t.wargaId === currentWarga.id && !pembayaran.find(p => p.tagihanId === t.id && p.status === "APPROVED"));
 
   const handleSubmit = async () => {
-    if (!selectedTagihan) { alert("Pilih tagihan dulu"); return; }
+    if (!selectedTagihan) { 
+      alert("Pilih tagihan dulu"); 
+      return; 
+    }
+    
     setSaving(true);
+    
     try {
-      let buktiUrl = null;
-      if (buktiFile) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          const buktiRes = await api.uploadBukti({
-            fileName: buktiFile.name,
-            fileData: e.target.result.split(",")[1],
-            wargaId: currentWarga.id,
-            tagihanId: selectedTagihan,
-          });
-          buktiUrl = buktiRes.buktiUrl;
-          
-          const tgh = tagihan.find(t => t.id === selectedTagihan);
-          const res = await api.submitPembayaran({
-            wargaId: currentWarga.id,
-            tagihanId: selectedTagihan,
-            nominal: tgh.nominal,
-            catatan,
-            bukti: buktiUrl,
-          });
-
-          if (res.ok) {
-            dispatch({ type: "ADD_PEMBAYARAN", payload: res.data });
-            setModal(null);
-            setSelectedTagihan("");
-            setBuktiFile(null);
-            setCatatan("");
-          }
-          setSaving(false);
-        };
-        reader.readAsDataURL(buktiFile);
-      } else {
-        const tgh = tagihan.find(t => t.id === selectedTagihan);
-        const res = await api.submitPembayaran({
-          wargaId: currentWarga.id,
-          tagihanId: selectedTagihan,
-          nominal: tgh.nominal,
-          catatan,
-          bukti: null,
-        });
-
-        if (res.ok) {
-          dispatch({ type: "ADD_PEMBAYARAN", payload: res.data });
-          setModal(null);
-          setSelectedTagihan("");
-          setBuktiFile(null);
-          setCatatan("");
-        }
+      const tgh = tagihan.find(t => t.id === selectedTagihan);
+      if (!tgh) {
+        alert("Tagihan tidak ditemukan");
         setSaving(false);
+        return;
       }
-    } catch (e) {
-      alert("Gagal submit pembayaran: " + e.message);
+
+      let buktiUrl = null;
+
+      if (buktiFile) {
+        try {
+          const reader = new FileReader();
+          
+          const uploadPromise = new Promise((resolve, reject) => {
+            reader.onload = async (e) => {
+              try {
+                const fileDataUrl = e.target.result;
+                const base64Data = fileDataUrl.split(",")[1];
+
+                const buktiRes = await api.uploadBukti({
+                  fileName: buktiFile.name,
+                  fileData: base64Data,
+                  wargaId: currentWarga.id,
+                  tagihanId: selectedTagihan,
+                });
+
+                if (!buktiRes.ok) {
+                  reject(new Error("Upload bukti gagal: " + buktiRes.msg));
+                } else {
+                  buktiUrl = buktiRes.buktiUrl;
+                  resolve(buktiUrl);
+                }
+              } catch (err) {
+                reject(err);
+              }
+            };
+            
+            reader.onerror = () => {
+              reject(new Error("Gagal membaca file"));
+            };
+            
+            reader.readAsDataURL(buktiFile);
+          });
+
+          await uploadPromise;
+        } catch (err) {
+          throw new Error("Upload bukti gagal: " + err.message);
+        }
+      }
+
+      const submitRes = await api.submitPembayaran({
+        id_warga: currentWarga.id,
+        id_tagihan: selectedTagihan,
+        nominal: tgh.nominal,
+        catatan: catatan,
+        bukti: buktiUrl || null,
+        tanggal: new Date().toISOString().split("T")[0],
+      });
+
+      if (!submitRes.ok) {
+        throw new Error("Submit pembayaran gagal: " + submitRes.msg);
+      }
+
+      dispatch({ 
+        type: "ADD_PEMBAYARAN", 
+        payload: submitRes.data 
+      });
+
+      setModal(null);
+      setSelectedTagihan("");
+      setBuktiFile(null);
+      setCatatan("");
+
+      alert("✅ Konfirmasi pembayaran berhasil dikirim!\nStatus: PENDING (menunggu persetujuan admin)");
+
+    } catch (error) {
+      console.error("Error:", error);
+      alert("❌ " + error.message);
+    } finally {
       setSaving(false);
     }
   };
@@ -634,7 +637,7 @@ function UserKonfirmasi({ state, dispatch }) {
               <select value={selectedTagihan} onChange={e => setSelectedTagihan(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
                 <option value="">— Pilih tagihan —</option>
                 {tagihanBelumLunas.map(t => (
-                  <option key={t.id} value={t.id}>{t.deskripsi} — {fmt(t.nominal)}</option>
+                  <option key={t.id} value={t.id}>{t.keterangan} — {fmt(t.nominal)}</option>
                 ))}
               </select>
             </div>
@@ -658,7 +661,7 @@ function UserKonfirmasi({ state, dispatch }) {
             <div className="flex gap-3">
               <button onClick={() => setModal(null)} className="flex-1 border border-slate-300 text-slate-600 py-2 rounded-xl text-sm font-semibold hover:bg-slate-50">Batal</button>
               <button onClick={handleSubmit} disabled={saving || !selectedTagihan} className="flex-1 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white py-2 rounded-xl text-sm font-semibold">
-                {saving ? "Mengirim..." : "Konfirmasi"}
+                {saving ? "⏳ Mengirim..." : "✅ Konfirmasi"}
               </button>
             </div>
           </div>
@@ -669,7 +672,29 @@ function UserKonfirmasi({ state, dispatch }) {
 }
 
 // ─── USER: RIWAYAT ────────────────────────────────────────────────────────────
-// ─── USER: PENGATURAN (GANTI PIN) ────────────────────────────────────────
+function UserRiwayat({ state }) {
+  const { currentWarga, pembayaran } = state;
+  if (!currentWarga) return null;
+
+  const myPembayaran = pembayaran.filter(p => p.wargaId === currentWarga.id).sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+  const cols = [
+    { key: "tanggal", label: "Tanggal", render: (r) => fmtDate(r.tanggal) },
+    { key: "nominal", label: "Nominal", render: (r) => fmt(r.nominal) },
+    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    { key: "catatan", label: "Catatan" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Riwayat Pembayaran</h1>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <PaymentTable rows={myPembayaran} columns={cols} />
+      </div>
+    </div>
+  );
+}
+
+// ─── USER: PENGATURAN (GANTI PIN) ────────────────────────────────────────────
 function UserPengaturan({ state, dispatch }) {
   const { currentWarga } = state;
   if (!currentWarga) return null;
@@ -820,28 +845,6 @@ function UserPengaturan({ state, dispatch }) {
   );
 }
 
-function UserRiwayat({ state }) {
-  const { currentWarga, pembayaran } = state;
-  if (!currentWarga) return null;
-
-  const myPembayaran = pembayaran.filter(p => p.wargaId === currentWarga.id).sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
-  const cols = [
-    { key: "tanggal", label: "Tanggal", render: (r) => fmtDate(r.tanggal) },
-    { key: "nominal", label: "Nominal", render: (r) => fmt(r.nominal) },
-    { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
-    { key: "catatan", label: "Catatan" },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Riwayat Pembayaran</h1>
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-        <PaymentTable rows={myPembayaran} columns={cols} />
-      </div>
-    </div>
-  );
-}
-
 // ─── ADMIN: DASHBOARD ─────────────────────────────────────────────────────────
 function AdminDashboard({ state }) {
   const { pembayaran, mutasi, tagihan } = state;
@@ -916,7 +919,6 @@ function AdminUploadMutasi({ state, dispatch }) {
       const res = await api.uploadMutasi(rows);
       if (res.ok) {
         dispatch({ type: "ADD_MUTASI", payload: res.data || rows });
-        // Auto-trigger matching
         const matchRes = await api.autoMatch();
         if (matchRes.ok && matchRes.matched > 0) {
           dispatch({ type: "SET_NOTIFICATION", payload: { type: "success", msg: `${matchRes.matched} pembayaran otomatis ter-match!` } });
@@ -1135,17 +1137,11 @@ export default function App() {
   const [role, setRole]   = useState("user");
   const [page, setPage]   = useState("dashboard");
 
-useEffect(() => {
-  const saved = sessionStorage.getItem("ipl_session");
-  if (saved) dispatch({ type: "LOGIN", payload: JSON.parse(saved) });},[]);
-
-// ✨ AUTO-SWITCH KE ADMIN JIKA session.isAdmin = true
-useEffect(() => {
-  if (state.session?.isAdmin === true) {
-    setRole("admin");
-    setPage("admin-dashboard");
-  }
-}, [state.session?.isAdmin]);  
+  useEffect(() => {
+    if (!state.notification) return;
+    const t = setTimeout(() => dispatch({ type: "CLEAR_NOTIF" }), 4000);
+    return () => clearTimeout(t);
+  }, [state.notification]);
 
   const loadData = useCallback(async () => {
     dispatch({ type: "SET_LOADING", payload: true });
@@ -1162,18 +1158,17 @@ useEffect(() => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Auto-switch ke admin jika session.isAdmin = true
+  useEffect(() => {
+    const saved = sessionStorage.getItem("ipl_session");
+    if (saved) dispatch({ type: "LOGIN", payload: JSON.parse(saved) });
+  }, []);
+
   useEffect(() => {
     if (state.session?.isAdmin === true) {
       setRole("admin");
       setPage("admin-dashboard");
     }
   }, [state.session?.isAdmin]);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem("ipl_session");
-    if (saved) dispatch({ type: "LOGIN", payload: JSON.parse(saved) });
-  }, []);
 
   const handleRoleSwitch = (r) => {
     setRole(r);
@@ -1183,7 +1178,6 @@ useEffect(() => {
   if (state.loading) return <LoadingScreen />;
   if (state.error)   return <ErrorScreen error={state.error} onRetry={loadData} />;
 
-  // ✅ LOGIN CHECK - Warga harus login, Admin bypass
   if (!state.session && role === "user") return <LoginPage state={state} dispatch={dispatch} />;
 
   const menu = role === "admin" ? ADMIN_MENU : USER_MENU;
@@ -1194,7 +1188,7 @@ useEffect(() => {
       case "qris":       return <QRISPage state={state} />;
       case "konfirmasi": return <UserKonfirmasi state={state} dispatch={dispatch} />;
       case "riwayat":    return <UserRiwayat    state={state} />;
-    case "pengaturan": return <UserPengaturan state={state} dispatch={dispatch} />; // ← NEW
+      case "pengaturan": return <UserPengaturan state={state} dispatch={dispatch} />;
       default:           return null;
     }
     switch (page) {
@@ -1210,7 +1204,6 @@ useEffect(() => {
     <div className="min-h-screen bg-slate-100 font-sans">
       <Notification notif={state.notification} onClose={() => dispatch({ type: "CLEAR_NOTIF" })} />
 
-      {/* TOP BAR */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-full px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
@@ -1236,7 +1229,6 @@ useEffect(() => {
               </div>
             )}
             
-            {/* Role switcher - hanya tampilkan jika admin login */}
             {role === "admin" && (
               <div className="flex bg-slate-100 rounded-xl p-1 text-xs font-semibold">
                 {[["user","👤 Warga"],["admin","🔑 Admin"]].map(([r, label]) => (
@@ -1252,7 +1244,6 @@ useEffect(() => {
       </header>
 
       <div className="max-w-full px-4 sm:px-6 py-6 flex flex-col sm:flex-row gap-6 pb-24 sm:pb-6">
-        {/* SIDEBAR desktop */}
         <aside className="w-full sm:w-52 flex-shrink-0">
           <nav className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 sticky top-20">
             {menu.map(m => (
@@ -1265,7 +1256,6 @@ useEffect(() => {
           </nav>
         </aside>
 
-        {/* BOTTOM NAV mobile */}
         <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 z-30 flex justify-around">
           {menu.map(m => (
             <button key={m.id} onClick={() => setPage(m.id)}
@@ -1275,7 +1265,6 @@ useEffect(() => {
             </button>
           ))}
           
-          {/* Mobile logout button */}
           {role === "user" && state.session && (
             <button onClick={() => { dispatch({ type: "LOGOUT" }); setRole("user"); setPage("dashboard"); }}
               className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-xs text-red-500 hover:bg-red-50">
