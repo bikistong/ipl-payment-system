@@ -451,7 +451,7 @@ function QRISPage({ state }) {
           <div className="text-3xl">🏦</div>
           <div>
             <h2 className="font-bold text-slate-800">Informasi Rekening</h2>
-            <p className="text-sm text-slate-500">{config.bank_name || "BCA"}</p>
+            <p className="text-sm text-slate-500">{config.bank_name || "SEA BANK"}</p>
           </div>
         </div>
 
