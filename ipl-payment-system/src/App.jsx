@@ -217,7 +217,7 @@ function extractNameOnly(text) {
 }
 
 // AUTO-MATCH MAIN FUNCTION
-function autoMatchAll(mutasiList, wargaList, threshold = 0.6) {
+function autoMatchAll(mutasiList, wargaList, pembayaranList, threshold = 0.6) {
   const results = {
     matched: [],
     unmatched: [],
@@ -1129,7 +1129,7 @@ const handleAutoMatch = async () => {
   
   setTimeout(async () => {
     try {
-      const results = autoMatchAll(unmatched, warga, 0.6);
+      const results = autoMatchAll(unmatched, warga, pembayaran, 0.6);
       setMatchResults(results);
       setShowResults(true);
 
