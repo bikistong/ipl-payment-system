@@ -187,17 +187,33 @@ function extractNomor(text) {
 function extractNameOnly(text) {
   if (!text) return "";
   
-  // Hapus prefix umum: TRF, IPL, TRANSFER, BULAN, APRIL, MEI, dll
-  let cleaned = text
+  // Normalize: uppercase dan split menjadi kata-kata
+  const words = text
     .toUpperCase()
-    .replace(/\b(TRF|IPL|TRANSFER|BULAN|APRIL|MEI|JUNI|JULI|AGUST|SEPT|OKTE|NOVE|DESE)\b/g, "")
-    .replace(/\d+/g, "") // Hapus angka
-    .replace(/[A-Z]\d*/g, "") // Hapus blok (A1, B2, dll)
-    .trim();
+    .split(/\s+/)
+    .filter(w => w.length > 0);
   
-  // Ambil kata terakhir (biasanya nama orang)
-  const words = cleaned.split(/\s+/).filter(w => w.length > 1);
-  return words.length > 0 ? words[words.length - 1] : "";
+  // Prefix dan bulan yang harus dihapus
+  const prefixBlacklist = [
+    "TRF", "IPL", "TRANSFER", "BULAN",
+    "JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI",
+    "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"
+  ];
+  
+  // Filter: hapus prefix + nomor rumah (A1, B123, dll)
+  const cleaned = words.filter(word => {
+    // Skip if it's a prefix
+    if (prefixBlacklist.includes(word)) return false;
+    
+    // Skip if it's blok nomor (A1, A123, B456, dll)
+    if (/^[A-Z]\d+$/.test(word)) return false;
+    
+    // Keep jika panjangnya > 0
+    return word.length > 0;
+  });
+  
+  // Return kata terakhir (biasanya nama orang)
+  return cleaned.length > 0 ? cleaned[cleaned.length - 1] : "";
 }
 
 // AUTO-MATCH MAIN FUNCTION
