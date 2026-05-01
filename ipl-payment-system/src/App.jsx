@@ -320,8 +320,8 @@ function LoginPage({ state, dispatch }) {
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-yellow-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-md">⭐</div>
-          <h1 className="text-xl font-bold text-slate-800">Mandalika Residence</h1>
-          <p className="text-slate-500 text-sm">Sistem Iuran IPL</p>
+          <h1 className="text-xl font-bold text-slate-800">{state.config.nama_perumahan || "Mandalika Residence"}</h1>
+          <p className="text-slate-500 text-sm">{state.config.nama_sistem || "Sistem Iuran IPL"}</p>
         </div>
 
         <div className="space-y-4">
@@ -451,14 +451,14 @@ function QRISPage({ state }) {
           <div className="text-3xl">🏦</div>
           <div>
             <h2 className="font-bold text-slate-800">Informasi Rekening</h2>
-            <p className="text-sm text-slate-500">{config.bank_name || "SEA BANK"}</p>
+            <p className="text-sm text-slate-500">{config.bank_name || "BCA"}</p>
           </div>
         </div>
 
         <div className="bg-slate-50 rounded-xl p-4 space-y-2">
           <p className="text-xs text-slate-500 uppercase">Nomor Rekening</p>
-          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "901025974294"}</p>
-          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "EGI MARTIN SETIAWAN"}</p>
+          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "1234567890"}</p>
+          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "Yayasan Griya Asri"}</p>
         </div>
 
         <div className="space-y-2">
@@ -937,7 +937,7 @@ function AdminUploadMutasi({ state, dispatch }) {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
         <p className="font-semibold mb-2">📋 Format CSV:</p>
         <p className="font-mono text-xs">tanggal,keterangan,nominal,pengirim</p>
-        <p className="text-xs mt-1">Contoh: 2025-04-01,TRF IPL APR BUDI A2,40000,BUDI SANTOSO</p>
+        <p className="text-xs mt-1">Contoh: 2025-04-01,TRF IPL APR BUDI A2,{state.config.nominal_ipl || 40000},BUDI SANTOSO</p>
       </div>
     </div>
   );
@@ -1471,8 +1471,8 @@ export default function App() {
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0">🏘</div>
             <div className="hidden sm:block min-w-0">
-              <p className="font-bold text-slate-800 text-sm leading-tight">{state.config.nama_perumahan || "MANDALIKA"}</p>
-              <p className="text-xs text-slate-400 leading-tight">Sistem Iuran IPL</p>
+              <p className="font-bold text-slate-800 text-sm leading-tight">{state.config.nama_perumahan || "Mandalika Residence"}</p>
+              <p className="text-xs text-slate-400 leading-tight">{state.config.nama_sistem || "Sistem Iuran IPL"}</p>
             </div>
           </div>
 
