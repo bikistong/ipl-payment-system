@@ -382,7 +382,7 @@ function LoginPage({ state, dispatch }) {
           </button>
 
           <p className="text-center text-xs text-slate-400 mt-4">
-            Lupa PIN? Hubungi pengurus RT
+            Lupa PIN? Hubungi Admin
           </p>
         </div>
       </div>
@@ -441,6 +441,9 @@ function UserDashboard({ state }) {
 function QRISPage({ state }) {
   const config = state.config;
   const nominalIpl = config.nominal_ipl || 40000;
+  const bankName = config.bank_name || "BCA";
+  const bankRekening = config.bank_rekening || "901025974294";
+  const bankAtasNama = config.bank_atas_nama || "EGI MARTIN SETIAWAN";
 
   return (
     <div className="space-y-6">
@@ -451,14 +454,14 @@ function QRISPage({ state }) {
           <div className="text-3xl">🏦</div>
           <div>
             <h2 className="font-bold text-slate-800">Informasi Rekening</h2>
-            <p className="text-sm text-slate-500">{config.bank_name || "BCA"}</p>
+            <p className="text-sm text-slate-500">{bankName}</p>
           </div>
         </div>
 
         <div className="bg-slate-50 rounded-xl p-4 space-y-2">
           <p className="text-xs text-slate-500 uppercase">Nomor Rekening</p>
-          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "1234567890"}</p>
-          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "Yayasan Griya Asri"}</p>
+          <p className="text-lg font-bold text-teal-600 font-mono">{bankRekening}</p>
+          <p className="text-xs text-slate-500">Atas Nama: {bankAtasNama}</p>
         </div>
 
         <div className="space-y-2">
