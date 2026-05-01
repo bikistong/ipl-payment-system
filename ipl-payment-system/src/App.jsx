@@ -181,12 +181,12 @@ function DashboardCard({ icon, label, value, sub, color }) {
   };
   const c = colors[color] || colors.teal;
   return (
-    <div className={`bg-white rounded-2xl border-l-4 ${c.border} shadow-sm p-5 flex items-center gap-4`}>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${c.icon} flex-shrink-0`}>{icon}</div>
-      <div>
-        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{label}</p>
-        <p className={`text-xl font-bold ${c.val} leading-tight`}>{value}</p>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    <div className={`bg-white rounded-xl sm:rounded-2xl border-l-4 ${c.border} shadow-sm p-3 sm:p-5 flex items-center gap-3 sm:gap-4`}>
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center text-lg sm:text-xl ${c.icon} flex-shrink-0`}>{icon}</div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide truncate">{label}</p>
+        <p className={`text-base sm:text-xl font-bold ${c.val} leading-tight break-words`}>{value}</p>
+        {sub && <p className="text-xs text-slate-400 mt-0.5 truncate">{sub}</p>}
       </div>
     </div>
   );
@@ -195,22 +195,22 @@ function DashboardCard({ icon, label, value, sub, color }) {
 // ─── PAYMENT TABLE ────────────────────────────────────────────────────────────
 function PaymentTable({ rows, columns }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-lg sm:rounded-xl border border-slate-200">
+      <table className="w-full text-xs sm:text-sm">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200">
             {columns.map(c => (
-              <th key={c.key} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{c.label}</th>
+              <th key={c.key} className="text-left px-2 sm:px-4 py-2 sm:py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{c.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0
-            ? <tr><td colSpan={columns.length} className="text-center py-10 text-slate-400 italic">Tidak ada data</td></tr>
+            ? <tr><td colSpan={columns.length} className="text-center py-8 sm:py-10 text-slate-400 italic text-xs sm:text-sm">Tidak ada data</td></tr>
             : rows.map((row, i) => (
               <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                 {columns.map(c => (
-                  <td key={c.key} className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                  <td key={c.key} className="px-2 sm:px-4 py-2 sm:py-3 text-slate-700 whitespace-nowrap text-xs sm:text-sm">
                     {c.render ? c.render(row) : row[c.key]}
                   </td>
                 ))}
@@ -225,13 +225,13 @@ function PaymentTable({ rows, columns }) {
 // ─── MODAL ────────────────────────────────────────────────────────────────────
 function Modal({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between min-h-[50px] sm:min-h-[56px]">
+          <h2 className="text-base sm:text-lg font-bold text-slate-800 mr-4">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl leading-none flex-shrink-0 min-w-[44px] h-[44px] flex items-center justify-center">×</button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );
@@ -246,8 +246,8 @@ function Notification({ notif, onClose }) {
     warning: "bg-amber-500",
   };
   return (
-    <div className={`fixed top-4 right-4 ${colors[notif.type] || colors.success} text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 z-40 animate-pulse`}>
-      <span>{notif.msg}</span>
+    <div className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-sm ${colors[notif.type] || colors.success} text-white px-4 sm:px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 sm:gap-3 z-40 animate-pulse text-sm sm:text-base`}>
+      <span className="flex-1">{notif.msg}</span>
       <button onClick={onClose} className="font-bold">×</button>
     </div>
   );
@@ -256,10 +256,10 @@ function Notification({ notif, onClose }) {
 // ─── LOADING & ERROR SCREENS ──────────────────────────────────────────────────
 function LoadingScreen() {
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
       <div className="text-center">
-        <div className="w-16 h-16 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-slate-600 font-semibold">Loading...</p>
+        <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-3 sm:mb-4"></div>
+        <p className="text-slate-600 font-semibold text-sm sm:text-base">Loading...</p>
       </div>
     </div>
   );
@@ -267,12 +267,12 @@ function LoadingScreen() {
 
 function ErrorScreen({ error, onRetry }) {
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md text-center">
-        <div className="text-6xl mb-4">⚠️</div>
-        <h1 className="text-2xl font-bold text-slate-800 mb-2">Terjadi Kesalahan</h1>
-        <p className="text-slate-600 text-sm mb-6">{error}</p>
-        <button onClick={onRetry} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-xl">
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-3 sm:px-4">
+      <div className="bg-white rounded-2xl shadow-lg p-6 sm:p-8 max-w-md w-full text-center">
+        <div className="text-5xl sm:text-6xl mb-4">⚠️</div>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">Terjadi Kesalahan</h1>
+        <p className="text-slate-600 text-xs sm:text-sm mb-6 break-words">{error}</p>
+        <button onClick={onRetry} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 sm:py-4 rounded-xl transition-colors min-h-[48px] sm:min-h-[52px]">
           Coba Lagi
         </button>
       </div>
@@ -316,12 +316,12 @@ function LoginPage({ state, dispatch }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center px-3 sm:px-4 py-8">
+      <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-6 sm:p-8">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-yellow-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-md">⭐</div>
-          <h1 className="text-xl font-bold text-slate-800">Mandalika Residence</h1>
-          <p className="text-slate-500 text-sm">Sistem Iuran IPL</p>
+          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-yellow-500 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl mx-auto mb-3 shadow-md flex-shrink-0">⭐</div>
+          <h1 className="text-lg sm:text-xl font-bold text-slate-800">Mandalika Residence</h1>
+          <p className="text-slate-500 text-xs sm:text-sm">Sistem Iuran IPL</p>
         </div>
 
         <div className="space-y-4">
@@ -329,7 +329,7 @@ function LoginPage({ state, dispatch }) {
             <label className="block text-sm font-semibold text-slate-600 mb-2">Cari Warga</label>
             <input
               type="text"
-              placeholder="Ketik nama atau blok nomor..."
+              placeholder="Ketik nama atau blok..."
               className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
               value={searchText}
               onChange={e => { setSearchText(e.target.value); setError(""); }}
@@ -353,7 +353,7 @@ function LoginPage({ state, dispatch }) {
               <input
                 type={showPin ? "text" : "password"}
                 maxLength={6}
-                placeholder="Masukkan PIN (6 digit)"
+                placeholder="6 digit PIN"
                 className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 pr-12 tracking-widest font-mono"
                 value={pin}
                 onChange={e => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
@@ -362,7 +362,7 @@ function LoginPage({ state, dispatch }) {
               <button
                 type="button"
                 onClick={() => setShowPin(s => !s)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg">
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg min-h-[44px] min-w-[44px] flex items-center justify-center">
                 {showPin ? "🙈" : "👁"}
               </button>
             </div>
@@ -377,7 +377,7 @@ function LoginPage({ state, dispatch }) {
           <button
             onClick={handleLogin}
             disabled={loading || state.loading || !selectedId}
-            className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
+            className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-3 sm:py-4 rounded-xl transition-colors shadow-sm min-h-[48px] sm:min-h-[52px]">
             {loading ? "🔄 Memverifikasi…" : "Masuk"}
           </button>
 
@@ -403,31 +403,33 @@ function UserDashboard({ state }) {
   const totalBayar   = myPembayaran.filter(p => p.status === "APPROVED").reduce((s, p) => s + p.nominal, 0);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">
-        Selamat datang, {currentWarga.nama} 👋
-      </h1>
-      <p className="text-slate-600 text-sm">
-        Blok {currentWarga.blok}{currentWarga.nomor || ""} — {currentWarga.alamat || ""}
-      </p>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-800">
+          Selamat datang, {currentWarga.nama} 👋
+        </h1>
+        <p className="text-slate-600 text-xs sm:text-sm">
+          Blok {currentWarga.blok}{currentWarga.nomor || ""} — {currentWarga.alamat || ""}
+        </p>
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <DashboardCard icon="📋" label="Tagihan Belum Lunas" value={belumLunas.length} sub={fmt(totalTagihan)} color="rose" />
         <DashboardCard icon="✅" label="Total Sudah Dibayar" value={fmt(totalBayar)} color="emerald" />
         <DashboardCard icon="⏳" label="Menunggu Persetujuan" value={myPembayaran.filter(p => p.status === "PENDING").length} color="amber" />
       </div>
 
       {belumLunas.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-          <h3 className="font-bold text-slate-700 mb-4">Tagihan Aktif</h3>
-          <div className="space-y-3">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
+          <h3 className="font-bold text-slate-700 mb-3 sm:mb-4 text-sm sm:text-base">Tagihan Aktif</h3>
+          <div className="space-y-2 sm:space-y-3">
             {belumLunas.map(t => (
-              <div key={t.id} className="flex items-center justify-between p-4 bg-rose-50 rounded-xl border border-rose-200">
-                <div>
-                  <p className="font-semibold text-slate-700">{t.keterangan || "Iuran IPL"}</p>
+              <div key={t.id} className="flex items-center justify-between p-3 sm:p-4 bg-rose-50 rounded-lg sm:rounded-xl border border-rose-200">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-slate-700 text-sm sm:text-base">{t.keterangan || "Iuran IPL"}</p>
                   <p className="text-xs text-slate-500">Jatuh tempo: {fmtDate(t.jatuhTempo)}</p>
                 </div>
-                <p className="font-bold text-rose-600">{fmt(t.nominal)}</p>
+                <p className="font-bold text-rose-600 text-sm sm:text-base ml-2 flex-shrink-0">{fmt(t.nominal)}</p>
               </div>
             ))}
           </div>
@@ -451,14 +453,14 @@ function QRISPage({ state }) {
           <div className="text-3xl">🏦</div>
           <div>
             <h2 className="font-bold text-slate-800">Informasi Rekening</h2>
-            <p className="text-sm text-slate-500">{config.bank_name || "BCA"}</p>
+            <p className="text-sm text-slate-500">{config.bank_name || "SEABANK"}</p>
           </div>
         </div>
 
         <div className="bg-slate-50 rounded-xl p-4 space-y-2">
           <p className="text-xs text-slate-500 uppercase">Nomor Rekening</p>
-          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "1234567890"}</p>
-          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "Yayasan Griya Asri"}</p>
+          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "901025974294"}</p>
+          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "EGI MARTIN SETIAWAN"}</p>
         </div>
 
         <div className="space-y-2">
@@ -1467,16 +1469,19 @@ export default function App() {
       <Notification notif={state.notification} onClose={() => dispatch({ type: "CLEAR_NOTIF" })} />
 
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-full px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="w-full px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0">🏘</div>
             <div className="hidden sm:block min-w-0">
               <p className="font-bold text-slate-800 text-sm leading-tight">{state.config.nama_perumahan || "MANDALIKA"}</p>
               <p className="text-xs text-slate-400 leading-tight">Sistem Iuran IPL</p>
             </div>
+            <div className="sm:hidden">
+              <p className="font-bold text-slate-800 text-xs leading-tight">{state.config.nama_perumahan || "MANDALIKA"}</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
             {role === "user" && state.session && (
               <div className="hidden sm:flex items-center gap-2">
                 <div className="text-right">
@@ -1495,8 +1500,9 @@ export default function App() {
               <div className="flex bg-slate-100 rounded-xl p-1 text-xs font-semibold">
                 {[["user","👤 Warga"],["admin","🔑 Admin"]].map(([r, label]) => (
                   <button key={r} onClick={() => handleRoleSwitch(r)}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${role === r ? "bg-white shadow text-teal-700" : "text-slate-500 hover:text-slate-700"}`}>
-                    {label}
+                    className={`px-2 sm:px-3 py-1.5 rounded-lg transition-all text-xs sm:text-sm ${role === r ? "bg-white shadow text-teal-700" : "text-slate-500 hover:text-slate-700"}`}>
+                    <span className="hidden sm:inline">{label}</span>
+                    <span className="sm:hidden">{label.split(' ')[0]}</span>
                   </button>
                 ))}
               </div>
@@ -1505,33 +1511,33 @@ export default function App() {
         </div>
       </header>
 
-      <div className="max-w-full px-4 sm:px-6 py-6 flex flex-col sm:flex-row gap-6 pb-24 sm:pb-6">
+      <div className="w-full px-3 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row gap-4 sm:gap-6 pb-24 sm:pb-6">
         <aside className="w-full sm:w-52 flex-shrink-0">
-          <nav className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 sticky top-20">
+          <nav className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 p-2 sticky top-20 sm:top-24">
             {menu.map(m => (
               <button key={m.id} onClick={() => setPage(m.id)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all mb-1 ${page === m.id ? "bg-teal-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>
-                <span>{m.icon}</span>
-                <span className="hidden sm:inline">{m.label}</span>
+                className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all mb-1 ${page === m.id ? "bg-teal-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>
+                <span className="text-base sm:text-lg flex-shrink-0">{m.icon}</span>
+                <span className="hidden sm:inline truncate">{m.label}</span>
               </button>
             ))}
           </nav>
         </aside>
 
-        <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 z-30 flex justify-around">
+        <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-1 py-2 z-30 flex justify-around items-center h-20">
           {menu.map(m => (
             <button key={m.id} onClick={() => setPage(m.id)}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-xs transition-all ${page === m.id ? "text-teal-600 font-bold" : "text-slate-400"}`}>
+              className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg text-xs flex-1 transition-all min-h-[60px] ${page === m.id ? "text-teal-600 font-bold" : "text-slate-400"}`}>
               <span className="text-xl">{m.icon}</span>
-              <span className="truncate max-w-[50px]">{m.label}</span>
+              <span className="truncate max-w-[50px] text-xs leading-tight">{m.label}</span>
             </button>
           ))}
           
           {role === "user" && state.session && (
             <button onClick={() => { dispatch({ type: "LOGOUT" }); setRole("user"); setPage("dashboard"); }}
-              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-xs text-red-500 hover:bg-red-50">
+              className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg text-xs text-red-500 hover:bg-red-50 flex-1 min-h-[60px] transition-colors">
               <span className="text-xl">🚪</span>
-              <span className="truncate max-w-[50px]">Keluar</span>
+              <span className="truncate max-w-[50px] text-xs leading-tight">Keluar</span>
             </button>
           )}
         </div>
