@@ -153,153 +153,6 @@ const normalizeRumah = (str) => {
   return str.toUpperCase().replace(/[\s\-_.]/g, "").trim();
 };
 
-// ─── AUTO-MATCH HELPER FUNCTIONS ──────────────────────────────────────────
-// Normalize text untuk matching
-function normalizeText(text) {
-  if (!text) return "";
-  return text.toUpperCase().replace(/[\s\-_.,']/g, "").trim();
-}
-
-// Hitung similarity antara 2 string (0-1)
-function calculateSimilarity(str1, str2) {
-  const s1 = normalizeText(str1);
-  const s2 = normalizeText(str2);
-  
-  if (s1 === s2) return 1.0; // Perfect match
-  
-  // Simple: hitung char yang sama / total char
-  let matches = 0;
-  for (let i = 0; i < Math.min(s1.length, s2.length); i++) {
-    if (s1[i] === s2[i]) matches++;
-  }
-  
-  return matches / Math.max(s1.length, s2.length);
-}
-
-// Extract nomor rumah dari keterangan
-function extractNomor(text) {
-  if (!text) return "";
-  const match = text.match(/([A-Z]+\d+)/i);
-  return match ? match[1].toUpperCase() : "";
-}
-
-// SMART EXTRACT: Ambil hanya nama orang (buang prefix TRF IPL APRIL dll)
-function extractNameOnly(text) {
-  if (!text) return "";
-  
-  // Normalize: uppercase dan split menjadi kata-kata
-  const words = text
-    .toUpperCase()
-    .split(/\s+/)
-    .filter(w => w.length > 0);
-  
-  // Prefix dan bulan yang harus dihapus
-  const prefixBlacklist = [
-    "TRF", "IPL", "TRANSFER", "BULAN",
-    "JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI",
-    "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"
-  ];
-  
-  // Filter: hapus prefix + nomor rumah (A1, B123, dll)
-  const cleaned = words.filter(word => {
-    // Skip if it's a prefix
-    if (prefixBlacklist.includes(word)) return false;
-    
-    // Skip if it's blok nomor (A1, A123, B456, dll)
-    if (/^[A-Z]\d+$/.test(word)) return false;
-    
-    // Keep jika panjangnya > 0
-    return word.length > 0;
-  });
-  
-  // Return kata terakhir (biasanya nama orang)
-  return cleaned.length > 0 ? cleaned[cleaned.length - 1] : "";
-}
-
-// AUTO-MATCH MAIN FUNCTION
-function autoMatchAll(mutasiList, wargaList, pembayaranList, threshold = 0.6) {
-  const results = {
-    matched: [],
-    unmatched: [],
-    stats: { total: mutasiList.length, matched: 0, unmatched: 0, rate: "0%" }
-  };
-
-  console.log("🤖 AUTO-MATCH DEBUG START");
-  console.log(`📊 Total Mutasi: ${mutasiList.length}, Total Warga: ${wargaList.length}, Threshold: ${threshold}`);
-  console.log("━".repeat(100));
-
-  for (const mutasi of mutasiList) {
-    let bestMatch = null;
-    let bestScore = 0;
-    const mutasiNama = normalizeText(extractNameOnly(mutasi.keterangan || mutasi.pengirim || "")); // ← SMART EXTRACT
-    const mutasiNomor = extractNomor(mutasi.keterangan || mutasi.pengirim || "");
-
-    console.log(`\n📌 MUTASI: "${mutasi.keterangan || mutasi.pengirim}"`);
-    console.log(`   Raw Keterangan: "${mutasi.keterangan || mutasi.pengirim}"`);
-    console.log(`   Extracted Nama: "${extractNameOnly(mutasi.keterangan || mutasi.pengirim)}"`);
-    console.log(`   Normalized Nama: "${mutasiNama}"`);
-    console.log(`   Extracted Nomor: "${mutasiNomor}"`);
-    console.log(`   Nominal: Rp ${mutasi.nominal}`);
-    console.log(`   ─ Checking against ${wargaList.length} warga...`);
-
-    // Cari warga dengan score tertinggi
-    for (const warga of wargaList) {
-      const wargaNama = normalizeText(warga.nama);
-      const wargaNomor = `${warga.blok}${warga.nomor || ""}`.toUpperCase();
-
-      // Scoring: 70% nama, 30% nomor
-      const namaSim = calculateSimilarity(mutasiNama, wargaNama);
-      const nomorMatch = mutasiNomor === wargaNomor ? 1.0 : 0;
-      const score = (namaSim * 0.7) + (nomorMatch * 0.3);
-
-      // Log setiap warga yang di-check (hanya top 3 score)
-      if (score >= bestScore) {
-        console.log(`     ✓ ${warga.nama} (${warga.blok}${warga.nomor}): nama=${(namaSim*100).toFixed(0)}% nomor=${nomorMatch===1?"✓":"✗"} → Score=${(score*100).toFixed(1)}%`);
-        bestScore = score;
-        bestMatch = { wargaId: warga.id, wargaNama: warga.nama, score };
-      }
-    }
-
-    console.log(`   📊 BEST MATCH: ${bestMatch?.wargaNama || "NONE"} → Score=${(bestScore*100).toFixed(1)}%`);
-
-    // Simpan hasil (matched atau unmatched)
-    if (bestScore >= threshold) {
-      console.log(`   ✅ MATCHED (${(bestScore*100).toFixed(0)}% >= ${threshold*100}%)`);
-      results.matched.push({
-        mutasiId: mutasi.id,
-        wargaId: bestMatch.wargaId,
-        wargaNama: bestMatch.wargaNama,
-        score: (bestScore * 100).toFixed(0) + "%",
-        nominal: mutasi.nominal,
-        tanggal: mutasi.tanggal
-      });
-    } else {
-      console.log(`   ❌ UNMATCHED (${(bestScore*100).toFixed(0)}% < ${threshold*100}%)`);
-      results.unmatched.push({
-        mutasiId: mutasi.id,
-        keterangan: mutasi.keterangan || mutasi.pengirim,
-        nominal: mutasi.nominal
-      });
-    }
-  }
-
-  // Calculate stats
-  const matched = results.matched.length;
-  const unmatched = results.unmatched.length;
-  results.stats = {
-    total: mutasiList.length,
-    matched: matched,
-    unmatched: unmatched,
-    rate: ((matched / mutasiList.length) * 100).toFixed(0) + "%"
-  };
-
-  console.log("\n" + "━".repeat(100));
-  console.log(`📈 FINAL RESULTS: Matched=${matched}, Unmatched=${unmatched}, Success Rate=${results.stats.rate}`);
-  console.log("🤖 AUTO-MATCH DEBUG END\n");
-
-  return results;
-}
-
 // ─── STATUS BADGE ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const map = {
@@ -551,27 +404,12 @@ function UserDashboard({ state }) {
 
   return (
     <div className="space-y-6">
-      {/* GREETING + ADDRESS CARD */}
-      <div className="space-y-2 sm:space-y-3">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">
-          Selamat datang, {currentWarga.nama} 👋
-        </h1>
-        
-        {/* ADDRESS CARD */}
-        <div className="bg-white rounded-lg sm:rounded-xl border border-slate-200 p-3 sm:p-4 space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📍</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-700">
-                Blok {currentWarga.blok}{currentWarga.nomor || ""}
-              </p>
-              {currentWarga.alamat && (
-                <p className="text-xs text-slate-500">{currentWarga.alamat}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">
+        Selamat datang, {currentWarga.nama} 👋
+      </h1>
+      <p className="text-slate-600 text-sm">
+        Blok {currentWarga.blok}{currentWarga.nomor || ""} — {currentWarga.alamat || ""}
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <DashboardCard icon="📋" label="Tagihan Belum Lunas" value={belumLunas.length} sub={fmt(totalTagihan)} color="rose" />
@@ -1110,222 +948,70 @@ function AdminMatching({ state, dispatch }) {
   const { pembayaran, mutasi, warga } = state;
   const [assignModal, setAssignModal] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [showResults, setShowResults] = useState(false);
-  const [matchResults, setMatchResults] = useState(null);
-  const [isRunning, setIsRunning] = useState(false);
 
   const getWarga = (id) => warga.find(w => w.id === id);
+
   const unmatched = mutasi.filter(m => !m.matched);
   const pendingPembayaran = pembayaran.filter(p => p.status === "PENDING");
 
-  // AUTO-MATCH BUTTON HANDLER - WITH DATABASE SAVE
-const handleAutoMatch = async () => {
-  if (unmatched.length === 0) {
-    alert("❌ Tidak ada mutasi yang belum di-match!");
-    return;
-  }
-
-  setIsRunning(true);
-  
-  setTimeout(async () => {
+  const handleAssign = async (mutasiId) => {
+    if (!assignModal) return;
+    setSaving(true);
     try {
-      const results = autoMatchAll(unmatched, warga, pembayaran, 0.6);
-      setMatchResults(results);
-      setShowResults(true);
-
-      // SAVE matched results to database
-      if (results.matched.length > 0) {
-        console.log(`💾 Saving ${results.matched.length} matched items to database...`);
-        
-        for (const match of results.matched) {
-          try {
-            const pembayaranItem = pembayaran.find(p => p.id === match.pembayaranId);
-            if (!pembayaranItem) {
-              console.warn(`⚠️ Pembayaran tidak ditemukan untuk match: ${match.wargaNama}`);
-              continue;
-            }
-
-            const res = await api.assignMutasi({
-              pembayaranId: pembayaranItem.id,
-              mutasiId: match.mutasiId,
-            });
-
-            if (res.ok) {
-              console.log(`✅ Saved: ${match.wargaNama} - ${match.score}`);
-              dispatch({
-                type: "UPDATE_PEMBAYARAN",
-                payload: {
-                  id: pembayaranItem.id,
-                  changes: { id_mutasi: match.mutasiId, status: "MATCHED" },
-                  mutasiId: match.mutasiId,
-                  msg: `✅ ${match.wargaNama} ter-match!`,
-                  notifType: "success"
-                }
-              });
-            } else {
-              console.error(`❌ Gagal save: ${match.wargaNama} - ${res.msg}`);
-            }
-          } catch (err) {
-            console.error(`❌ Error saving ${match.wargaNama}:`, err.message);
-          }
-        }
-
-        alert(`✅ Auto-Match Selesai!\n✅ Matched: ${results.matched.length}\n⚠️ Unmatched: ${results.unmatched.length}\n\nHasil sudah tersimpan di database.`);
+      const res = await api.assignMutasi({
+        pembayaranId: assignModal.id,
+        mutasiId,
+      });
+      if (res.ok) {
+        dispatch({ type: "UPDATE_PEMBAYARAN", payload: { id: assignModal.id, changes: { id_mutasi: mutasiId, status: "MATCHED" }, mutasiId, msg: "Mutasi berhasil di-assign!", notifType: "success" } });
+        setAssignModal(null);
       }
-
-    } catch (error) {
-      console.error("❌ Auto-Match Error:", error);
-      alert("❌ Terjadi kesalahan: " + error.message);
+    } catch (e) {
+      alert("Gagal assign: " + e.message);
     }
-    
-    setIsRunning(false);
-  }, 500);
-};
+    setSaving(false);
+  };
+
+  const cols = [
+    { key: "catatan", label: "Warga/Keterangan" },
+    { key: "tanggal", label: "Tanggal", render: (r) => fmtDate(r.tanggal) },
+    { key: "nominal", label: "Nominal", render: (r) => fmt(r.nominal) },
+    { 
+      key: "action", 
+      label: "Action", 
+      render: (r) => (
+        <button onClick={() => setAssignModal(r)} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg">
+          Assign
+        </button>
+      )
+    },
+  ];
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* HEADER + AUTO-MATCH BUTTON */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800">
-          Matching Pembayaran
-        </h1>
-        <button
-          onClick={handleAutoMatch}
-          disabled={unmatched.length === 0 || isRunning}
-          className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 text-white font-semibold px-4 sm:px-6 py-2 sm:py-3 rounded-xl transition-colors min-h-[44px] flex items-center justify-center gap-2"
-        >
-          {isRunning ? "🔄 Processing..." : "🤖 Auto-Match"}
-        </button>
+    <div className="space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Matching Pembayaran</h1>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <h3 className="font-bold text-slate-700 mb-4">Pembayaran Pending (Belum Match)</h3>
+        <PaymentTable rows={pendingPembayaran} columns={cols} />
       </div>
 
-      {/* AUTO-MATCH RESULTS */}
-      {showResults && matchResults && (
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-700 text-base sm:text-lg">
-              ✨ Hasil Auto-Match
-            </h3>
-            <button
-              onClick={() => setShowResults(false)}
-              className="text-slate-400 hover:text-slate-600 text-2xl"
-            >
-              ×
-            </button>
-          </div>
-
-          {/* STATS CARDS */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="bg-emerald-50 rounded-lg p-3 text-center border border-emerald-200">
-              <p className="text-xl sm:text-2xl font-bold text-emerald-600">
-                {matchResults.stats.matched}
-              </p>
-              <p className="text-xs text-emerald-700">Matched ✅</p>
-            </div>
-            <div className="bg-amber-50 rounded-lg p-3 text-center border border-amber-200">
-              <p className="text-xl sm:text-2xl font-bold text-amber-600">
-                {matchResults.stats.unmatched}
-              </p>
-              <p className="text-xs text-amber-700">Unmatched ⚠️</p>
-            </div>
-            <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-200">
-              <p className="text-xl sm:text-2xl font-bold text-blue-600">
-                {matchResults.stats.rate}
-              </p>
-              <p className="text-xs text-blue-700">Success %</p>
-            </div>
-          </div>
-
-          {/* MATCHED LIST */}
-          {matchResults.matched.length > 0 && (
-            <div className="space-y-2">
-              <p className="font-semibold text-slate-700 text-sm">✅ Matched Records:</p>
-              <div className="max-h-48 overflow-y-auto space-y-1 sm:space-y-2">
-                {matchResults.matched.map((m, i) => (
-                  <div key={i} className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 sm:p-3">
-                    <p className="font-semibold text-slate-700 text-xs sm:text-sm">
-                      {m.wargaNama}
-                    </p>
-                    <p className="text-xs text-slate-600">
-                      Score: {m.score} • {fmt(m.nominal)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* UNMATCHED LIST */}
-          {matchResults.unmatched.length > 0 && (
-            <div className="space-y-2">
-              <p className="font-semibold text-slate-700 text-sm">
-                ⚠️ Unmatched (Assign Manual):
-              </p>
-              <div className="max-h-48 overflow-y-auto space-y-1 sm:space-y-2">
-                {matchResults.unmatched.map((m, i) => (
-                  <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg p-2 sm:p-3">
-                    <p className="font-semibold text-slate-700 text-xs sm:text-sm">
-                      {m.keterangan}
-                    </p>
-                    <p className="text-xs text-slate-600">{fmt(m.nominal)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* CLOSE BUTTON */}
-          <button
-            onClick={() => setShowResults(false)}
-            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 sm:py-3 rounded-xl text-sm font-semibold transition-colors"
-          >
-            ✓ Selesai
-          </button>
-        </div>
-      )}
-
-      {/* PENDING PEMBAYARAN TABLE */}
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
-        <h3 className="font-bold text-slate-700 mb-3 sm:mb-4 text-sm sm:text-base">
-          Pembayaran Pending (Belum Match)
-        </h3>
-        {pendingPembayaran.length === 0 ? (
-          <p className="text-center text-slate-400 py-6 sm:py-8 text-sm">
-            Semua pembayaran sudah di-match! 🎉
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <PaymentTable rows={pendingPembayaran} columns={cols} />
-          </div>
-        )}
-      </div>
-
-      {/* MANUAL ASSIGN MODAL */}
       {assignModal && (
         <Modal title="Assign Mutasi ke Pembayaran" onClose={() => setAssignModal(null)}>
           <p className="text-sm text-slate-600 mb-3">
-            Pilih mutasi untuk <strong>{getWarga(assignModal.wargaId)?.nama || "—"}</strong>:
+            Pilih mutasi untuk <strong>{getWarga(assignModal.wargaId)?.nama || "—"}</strong> ({fmt(assignModal.nominal)}):
           </p>
           <div className="space-y-2 max-h-72 overflow-y-auto">
-            {unmatched.length === 0 ? (
-              <p className="text-center text-slate-400 text-sm py-4">
-                Tidak ada mutasi tersedia
-              </p>
-            ) : (
-              unmatched.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => handleAssign(m.id)}
-                  disabled={saving}
-                  className="w-full text-left p-3 border border-slate-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50"
-                >
-                  <p className="font-semibold text-slate-700 text-sm">
-                    {m.pengirim || m.keterangan}
-                  </p>
-                  <p className="text-xs text-slate-400">{fmtDate(m.tanggal)}</p>
-                  <p className="text-sm font-bold text-teal-600 mt-1">{fmt(m.nominal)}</p>
-                </button>
-              ))
-            )}
+            {unmatched.length === 0
+              ? <p className="text-center text-slate-400 text-sm py-4">Tidak ada mutasi tersedia</p>
+              : unmatched.map(m => (
+                  <button key={m.id} onClick={() => handleAssign(m.id)} disabled={saving} className="w-full text-left p-3 border border-slate-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50">
+                    <p className="font-semibold text-slate-700 text-sm">{m.pengirim}</p>
+                    <p className="text-xs text-slate-400">{fmtDate(m.tanggal)} · {m.keterangan}</p>
+                    <p className="text-sm font-bold text-teal-600 mt-1">{fmt(m.nominal)}</p>
+                  </button>
+                ))
+            }
           </div>
         </Modal>
       )}
@@ -1820,7 +1506,7 @@ export default function App() {
       </header>
 
       <div className="max-w-full px-4 sm:px-6 py-6 flex flex-col sm:flex-row gap-6 pb-24 sm:pb-6">
-        <aside className="w-full sm:w-52 flex-shrink-0">
+        <aside className="hidden sm:block w-full sm:w-52 flex-shrink-0">
           <nav className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 sticky top-20">
             {menu.map(m => (
               <button key={m.id} onClick={() => setPage(m.id)}
