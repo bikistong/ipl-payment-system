@@ -457,8 +457,8 @@ function QRISPage({ state }) {
 
         <div className="bg-slate-50 rounded-xl p-4 space-y-2">
           <p className="text-xs text-slate-500 uppercase">Nomor Rekening</p>
-          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "1234567890"}</p>
-          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "Yayasan Griya Asri"}</p>
+          <p className="text-lg font-bold text-teal-600 font-mono">{config.bank_rekening || "901025974294"}</p>
+          <p className="text-xs text-slate-500">Atas Nama: {config.bank_atas_nama || "EGI MARTIN SETIAWAN"}</p>
         </div>
 
         <div className="space-y-2">
