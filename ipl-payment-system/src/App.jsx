@@ -506,7 +506,12 @@ function UserKonfirmasi({ state, dispatch }) {
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef();
 
-  const tagihanBelumLunas = tagihan.filter(t => t.wargaId === currentWarga.id && !pembayaran.find(p => p.tagihanId === t.id && p.status === "APPROVED"));
+  const tagihanBelumLunas = tagihan.filter(t =>
+  t.wargaId === currentWarga.id &&
+  !pembayaran.find(p => 
+    p.tagihanId === t.id && 
+    (p.status === "APPROVED" || p.status === "PENDING" || p.status === "MATCHED")
+  ));
 
   const handleSubmit = async () => {
     if (!selectedTagihan) { 
