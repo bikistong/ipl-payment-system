@@ -1118,68 +1118,69 @@ function AdminMatching({ state, dispatch }) {
   const unmatched = mutasi.filter(m => !m.matched);
   const pendingPembayaran = pembayaran.filter(p => p.status === "PENDING");
 
-  // AUTO-MATCH BUTTON HANDLER
-  const handleAutoMatch = () => {
-    if (unmatched.length === 0) {
-      alert("❌ Tidak ada mutasi yang belum di-match!");
-      return;
-    }
+  // AUTO-MATCH BUTTON HANDLER - WITH DATABASE SAVE
+const handleAutoMatch = async () => {
+  if (unmatched.length === 0) {
+    alert("❌ Tidak ada mutasi yang belum di-match!");
+    return;
+  }
 
-    setIsRunning(true);
-    
-    setTimeout(() => {
+  setIsRunning(true);
+  
+  setTimeout(async () => {
+    try {
       const results = autoMatchAll(unmatched, warga, 0.6);
       setMatchResults(results);
       setShowResults(true);
-      setIsRunning(false);
-    }, 500);
-  };
 
-  // MANUAL ASSIGN HANDLER (EXISTING)
-  const handleAssign = async (mutasiId) => {
-    if (!assignModal) return;
-    setSaving(true);
-    try {
-      const res = await api.assignMutasi({
-        pembayaranId: assignModal.id,
-        mutasiId,
-      });
-      if (res.ok) {
-        dispatch({
-          type: "UPDATE_PEMBAYARAN",
-          payload: {
-            id: assignModal.id,
-            changes: { id_mutasi: mutasiId, status: "MATCHED" },
-            mutasiId,
-            msg: "✅ Mutasi berhasil di-assign!",
-            notifType: "success"
+      // SAVE matched results to database
+      if (results.matched.length > 0) {
+        console.log(`💾 Saving ${results.matched.length} matched items to database...`);
+        
+        for (const match of results.matched) {
+          try {
+            const pembayaranItem = pembayaran.find(p => p.id === match.pembayaranId);
+            if (!pembayaranItem) {
+              console.warn(`⚠️ Pembayaran tidak ditemukan untuk match: ${match.wargaNama}`);
+              continue;
+            }
+
+            const res = await api.assignMutasi({
+              pembayaranId: pembayaranItem.id,
+              mutasiId: match.mutasiId,
+            });
+
+            if (res.ok) {
+              console.log(`✅ Saved: ${match.wargaNama} - ${match.score}`);
+              dispatch({
+                type: "UPDATE_PEMBAYARAN",
+                payload: {
+                  id: pembayaranItem.id,
+                  changes: { id_mutasi: match.mutasiId, status: "MATCHED" },
+                  mutasiId: match.mutasiId,
+                  msg: `✅ ${match.wargaNama} ter-match!`,
+                  notifType: "success"
+                }
+              });
+            } else {
+              console.error(`❌ Gagal save: ${match.wargaNama} - ${res.msg}`);
+            }
+          } catch (err) {
+            console.error(`❌ Error saving ${match.wargaNama}:`, err.message);
           }
-        });
-        setAssignModal(null);
-      }
-    } catch (e) {
-      alert("❌ Gagal assign: " + e.message);
-    }
-    setSaving(false);
-  };
+        }
 
-  const cols = [
-    { key: "catatan", label: "Warga/Keterangan" },
-    { key: "tanggal", label: "Tanggal", render: (r) => fmtDate(r.tanggal) },
-    { key: "nominal", label: "Nominal", render: (r) => fmt(r.nominal) },
-    {
-      key: "action",
-      label: "Action",
-      render: (r) => (
-        <button
-          onClick={() => setAssignModal(r)}
-          className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg"
-        >
-          Assign
-        </button>
-      )
+        alert(`✅ Auto-Match Selesai!\n✅ Matched: ${results.matched.length}\n⚠️ Unmatched: ${results.unmatched.length}\n\nHasil sudah tersimpan di database.`);
+      }
+
+    } catch (error) {
+      console.error("❌ Auto-Match Error:", error);
+      alert("❌ Terjadi kesalahan: " + error.message);
     }
-  ];
+    
+    setIsRunning(false);
+  }, 500);
+};
 
   return (
     <div className="space-y-4 sm:space-y-6">
