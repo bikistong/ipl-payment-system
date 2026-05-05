@@ -1691,11 +1691,11 @@ function AdminMatching({ state, dispatch }) {
             ? <p className="text-center text-slate-400 text-sm py-4">Tidak ada mutasi yang tersedia</p>
             : (() => {
                 const [q, setQ] = [assignSearchQ, setAssignSearchQ];
-                const filtered  = q ? unmatched.filter(m =>
-                  m.pengirim?.toLowerCase().includes(q.toLowerCase()) ||
-                  String(m.nominal).includes(q) ||
-                  m.keterangan?.toLowerCase().includes(q.toLowerCase())
-                ) : unmatched;
+                const filtered = q ? unmatched.filter(m =>
+                   String(m.pengirim || "").toLowerCase().includes(q.toLowerCase()) ||
+                   String(m.nominal || "").includes(q) ||
+                   String(m.keterangan || "").toLowerCase().includes(q.toLowerCase())
+                  ) : unmatched;
                 return (
                   <div className="space-y-2">
                     <input type="text" placeholder="Cari pengirim, nominal, keterangan..."
