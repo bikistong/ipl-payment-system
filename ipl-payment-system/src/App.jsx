@@ -3,7 +3,7 @@ import { useState, useReducer, useRef, useEffect, useCallback } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 // 🔧 KONFIGURASI
 // ─────────────────────────────────────────────────────────────────────────────
-const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbyhjVMch_-B3ooPRg-Yqf2A-wyf_Mq6Xyy8wmNWQRVK2hc5knhTgVgSTluV0wUaB7h8ug/exec";
+const APPSCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGCScVQ9vpU7Bzf9cMAHLZZ4BmY41M9RUjELxKW5iGKQ6tVsQ6fk6wDapLQ3z7zhAERA/exec";
 
 // ─── API LAYER ────────────────────────────────────────────────────────────────
 const api = {
