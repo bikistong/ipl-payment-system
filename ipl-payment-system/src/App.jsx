@@ -1957,6 +1957,7 @@ function AdminLaporan({ state }) {
 function PublicKas({ state }) {
   const { kas, kasRingkasan, periode, tagihan, pembayaran, warga, deposit, config } = state;
   const tarif      = Number(config.nominal_ipl) || 40000;
+  const wargaAktif = warga.filter(w => w.aktif);
   const [tab, setTab] = useState("kas");
   const [filterTipe, setFilterTipe] = useState("SEMUA");
   const [filterWarga, setFilterWarga] = useState("SEMUA");
@@ -2025,7 +2026,7 @@ function PublicKas({ state }) {
             { label:"Lunas",   value:lunas,                              color:"text-emerald-200" },
             { label:"Belum",   value:belum,                              color:"text-amber-200"   },
             { label:"Tunggak", value:tunggak,                            color:"text-rose-200"    },
-            { label:"Target",  value:fmt(warga.length*tarif).replace("Rp",""), color:"text-white" },
+            { label:"Target",  value:fmt(wargaAktif.length*tarif).replace("Rp",""), color:"text-white" },
           ].map(s => (
             <div key={s.label} className="bg-white/10 rounded-xl p-2 text-center">
               <p className={`text-base font-bold ${s.color}`}>{s.value}</p>
@@ -2204,8 +2205,8 @@ function PublicKas({ state }) {
                 }
               </div>
               <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex justify-between text-xs">
-                <span className="text-slate-400">{filteredWarga.length} dari {warga.length} warga</span>
-                <span className="font-semibold text-teal-600">{fmt(lunas*tarif)} / {fmt(warga.length*tarif)}</span>
+                <span className="text-slate-400">{filteredWarga.length} dari {wargaAktif.length} warga</span>
+                <span className="font-semibold text-teal-600">{fmt(lunas*tarif)} / {fmt(wargaAktif.length*tarif)}</span>
               </div>
             </div>
           </div>
@@ -2667,7 +2668,7 @@ function AdminKas({ state, dispatch }) {
         </div>
         <div className="flex justify-between mt-2 text-xs text-slate-400">
           <span>{fmt(sudahBayar.size * (state.config.nominal_ipl || 40000))} terkumpul</span>
-          <span>Target {fmt(warga.length * (state.config.nominal_ipl || 40000))}</span>
+          <span>Target {fmt(wargaAktif.length * (state.config.nominal_ipl || 40000))}</span>
         </div>
       </div>
 
