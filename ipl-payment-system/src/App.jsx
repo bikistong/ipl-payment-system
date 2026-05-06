@@ -2049,7 +2049,7 @@ function PublicKas({ state }) {
             </div>
             <div className="flex justify-between mt-1.5 text-xs text-slate-400">
               <span>{fmt(lunas*tarif)} terkumpul</span>
-              <span>Target {fmt(warga.length*tarif)}</span>
+              <span>Target {fmt(wargaAktif.length * (state.config.nominal_ipl || 40000))}</span>
             </div>
           </div>
         )}
@@ -2618,6 +2618,7 @@ function AdminKas({ state, dispatch }) {
 
   // Progress koleksi bulan ini
   const thisMonth = new Date().toISOString().slice(0, 7);
+  const wargaAktif = warga.filter(w => w.aktif);
   const sudahBayar = new Set(
     pembayaran.filter(p => p.status === "APPROVED" && p.tanggal?.startsWith(thisMonth)).map(p => p.wargaId)
   );
